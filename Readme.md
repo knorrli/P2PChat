@@ -9,10 +9,10 @@
 ### Deployment
 In the `p2pchat` dir, deploy the app to TEDA using the provided scripts
 
-1. `$ ../../script/depl_app.sh p2pchat make hosts_alive.conf`
-2. `$ ../../script/depl_enodes.sh p2pchat hosts_alive.conf`
+1. `$ ../../scripts/depl_app.sh p2pchat make hosts_alive.conf`
+2. `$ ../../scripts/depl_enodes.sh p2pchat hosts_alive.conf`
 
 Then run the app on the TEDA distributed environment with this command:
 
-`$ ../../script/run.sh p2pchat "watcher:run()" hosts_alive.conf diufpc80.unifr.ch <$USER>`
+`$ ../../scripts/run.sh p2pchat "watcher:run()" hosts_alive.conf diufpc80.unifr.ch <$USER>`
 
