@@ -1,5 +1,23 @@
 # P2PChat - an experimental approach for P2P chatting in dynamic networks
 
+### Project Overview
+
+We want to create a chat application that allows for Peer to Peer chatting in a
+mesh network where nodes can connect/disconnect dynamically.
+The chat application operates without a central master server, i.e. each
+individual node routes received messages according to a set of routing
+instructions which are updated whenever the network topology changes.
+
+The chat application itself will only have a rudimentary feature set, and the
+focus of the project will be on the following stuff:
+
+1. Implemeting an efficient method for updating the routing information of
+   affected nodes whenever a node connects or disconnects from the network
+2. Implementing an optimized routing algorithm (based on existing shortest-path
+   algorithms) for routing chat messages from one node to any other node in the
+   network.
+
+
 ### Installation
 
 1. Get a working version of the TEDA environment running on your machine
