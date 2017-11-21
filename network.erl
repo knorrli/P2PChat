@@ -1,10 +1,11 @@
--module(watcher).
+-module(network).
 
 -export([ run/0, init_node/1, log/2, debug/2 ]).
 -define(OUTFILE, "out.hrl").
 -define(DEBUG, false).
 
-% run() -> run(no_teda).
+% The network contains of a single observer process that sets up and then
+% observes the different network nodes.
 run() ->
 
   {{Year, Month, Day}, {Hour, Minute, _}} = erlang:localtime(),
@@ -21,7 +22,7 @@ run() ->
   % LOCAL
   % unregisters the process after running so that the code can be run in the
   % erlang repl multiple times.
-  % unregister(watcher).
+  % unregister(observer).
 
 log(Msg, Prms) ->
   debug(Msg, Prms),
@@ -47,28 +48,28 @@ initialize_network_links(Node, OtherNodes) ->
     {node_linked, N, LinkedNodes} -> log("~p: linked to ~p~n", [N, LinkedNodes])
   end.
 
-% inform the watcher that we are running
-init_node(Watcher) ->
+% inform the observer that we are running
+init_node(Observer) ->
   debug("~p: running~n", [self()]),
-  Watcher ! { node_initialized, self() },
+  Observer ! { node_initialized, self() },
 
   receive
-    {initialize_links, LinkedNodes, Watcher } ->
-      Watcher ! {node_linked, self(), LinkedNodes},
-      route_messages(LinkedNodes, Watcher)
+    {initialize_links, LinkedNodes, Observer } ->
+      Observer ! {node_linked, self(), LinkedNodes},
+      route_messages(LinkedNodes, Observer)
   end.
 
 % TODO
-route_messages(LinkedNodes, Watcher) ->
+route_messages(LinkedNodes, Observer) ->
   receive
     {chat_msg, From, To, Msg} ->
       route_chat_msg(From, To, Msg),
-      route_messages(LinkedNodes, Watcher)
+      route_messages(LinkedNodes, Observer)
   end.
 
 %% TODO
 route_chat_msg(From, To, Msg) when To == self() ->
-  debug("Yay", [self()]).
+  debug("", [self()]).
 
 % helper for switchable debug print output
 debug(Str, Prms) ->
