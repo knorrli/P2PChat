@@ -1,8 +1,8 @@
 -module(network).
 
 -export([ run/0, init_node/1, log/2, debug/2 ]).
--define(OUTFILE, "out.hrl").
--define(DEBUG, false).
+-define(OUTFILE, "out_network.hrl").
+-define(DEBUG, true).
 
 % The network contains of a single observer process that sets up and then
 % observes the different network nodes.
@@ -17,16 +17,16 @@ run() ->
   debug("Nodes: ~p~n", [Nodes]),
 
   %   1.2 initialize network connections
-  initialize_random_network(Nodes).
+  initialize_random_network(Nodes),
 
-  % LOCAL
-  % unregisters the process after running so that the code can be run in the
-  % erlang repl multiple times.
-  % unregister(observer).
+  observe_network().
 
-log(Msg, Prms) ->
-  debug(Msg, Prms),
-  file:write_file(?OUTFILE, io_lib:format(Msg, Prms), [append]).
+observe_network() ->
+  receive
+    {client_connected, Node, Client} -> log("~p: client ~p connected", [Node, Client]);
+    {route_msg, Recipient, From, To} -> log("~p: routing message from ~p to ~p~n", [Recipient, From, To])
+  end,
+  observe_network().
 
 deploy_nodes(Enodes) ->
   [ deploy_node(Enode) || Enode <- Enodes ].
@@ -34,7 +34,7 @@ deploy_nodes(Enodes) ->
 deploy_node(Enode) ->
   Node = spawn(Enode, ?MODULE, init_node, [self()]),
   receive
-    { node_initialized, N } -> log("~p: node initialized~n", [N])
+    { node_initialized, Pid, Name } -> log("~p: node registered as ~p~n", [Pid, Name])
   end,
   Node.
 
@@ -48,28 +48,60 @@ initialize_network_links(Node, OtherNodes) ->
     {node_linked, N, LinkedNodes} -> log("~p: linked to ~p~n", [N, LinkedNodes])
   end.
 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% NODE
+%%
 % inform the observer that we are running
 init_node(Observer) ->
+  global:register_name(node(), self()),
+  Observer ! { node_initialized, self(), node() },
   debug("~p: running~n", [self()]),
-  Observer ! { node_initialized, self() },
 
   receive
     {initialize_links, LinkedNodes, Observer } ->
       Observer ! {node_linked, self(), LinkedNodes},
-      route_messages(LinkedNodes, Observer)
+      % initially, no clients can be connected
+      run_node([], LinkedNodes, Observer)
   end.
 
-% TODO
-route_messages(LinkedNodes, Observer) ->
+% [
+%   {a@diufpc80.unifr.ch, [{dani, 5}, {test, 6}]},
+%   {b@diufpc83.uinfr.ch, [{test, 3}, {dani, 6}]},
+% ]
+run_node(ConnectedClients, LinkedNodes, Observer) ->
   receive
+    {client_connected, Client} ->
+      Observer ! {client_connected, self(), Client},
+      connect_client(Client, ConnectedClients, LinkedNodes, Observer),
+      run_node([Client|ConnectedClients], LinkedNodes, Observer).
+
+    {client_disconnected, Client} ->
+      Observer ! {client_disconnected, self(), Client},
+      disconnect_client(Client, ConnectedClients, LinkedNodes, Observer),
+      run_node(lists:delete(Client), LinkedNodes, Observer).
+
     {chat_msg, From, To, Msg} ->
+      Observer ! {route_msg, self(), From, To},
       route_chat_msg(From, To, Msg),
-      route_messages(LinkedNodes, Observer)
   end.
 
-%% TODO
+connect_client(Client, LinkedNodes, Observer) ->
+  % TODO: inform_linked_nodes_about_connected_client(Client, LinkedNodes),
+
+disconnect_client(Client, LinkedNodes, Observer) ->
+  % TODO: inform_linked_nodes_about_disconnected_client(Client, LinkedNodes),
+
 route_chat_msg(From, To, Msg) when To == self() ->
-  debug("", [self()]).
+  % TODO: route_msg_to_optimal_linked_node
+  run_node(ConnectedClients, LinkedNodes, Observer)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% HELPERS
+log(Msg, Prms) ->
+  debug(Msg, Prms),
+  file:write_file(?OUTFILE, io_lib:format(Msg, Prms), [append]).
 
 % helper for switchable debug print output
 debug(Str, Prms) ->
