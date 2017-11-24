@@ -23,7 +23,7 @@ run() ->
 
 observe_network() ->
   receive
-    {client_connected, Node, Client} -> log("~p: client ~p connected", [Node, Client]);
+    {client_connected, Node, Client} -> log("~p: client ~p connected~n", [Node, Client]);
     {route_msg, Recipient, From, To} -> log("~p: routing message from ~p to ~p~n", [Recipient, From, To])
   end,
   observe_network().
@@ -64,38 +64,41 @@ init_node(Observer) ->
       Observer ! {node_linked, self(), LinkedNodes},
       % initially, no clients can be connected
       run_node([], LinkedNodes, Observer)
+      % RouteMap = [],
+      % run_node([], LinkedNodes, Observer, RouteMap)
   end.
 
-% [
-%   {a@diufpc80.unifr.ch, [{dani, 5}, {test, 6}]},
-%   {b@diufpc83.uinfr.ch, [{test, 3}, {dani, 6}]},
-% ]
+
 run_node(ConnectedClients, LinkedNodes, Observer) ->
   receive
     {client_connected, Client} ->
-      Observer ! {client_connected, self(), Client},
-      connect_client(Client, ConnectedClients, LinkedNodes, Observer),
-      run_node([Client|ConnectedClients], LinkedNodes, Observer).
+      Observer ! {client_connected, self(), Client};
+      %connect_client(Client, ConnectedClients, LinkedNodes, Observer),
+      run_node([Client|ConnectedClients], LinkedNodes, Observer);
 
     {client_disconnected, Client} ->
-      Observer ! {client_disconnected, self(), Client},
-      disconnect_client(Client, ConnectedClients, LinkedNodes, Observer),
-      run_node(lists:delete(Client), LinkedNodes, Observer).
+      Observer ! {client_disconnected, self(), Client};
+      %disconnect_client(Client, ConnectedClients, LinkedNodes, Observer),
+      run_node(lists:delete(Client), LinkedNodes, Observer);
+
+    %{new_client_online, LinkedNode, Client} ->
+      %run_node(ConnectedClients, LinkedNodes, Observer, lists:flatten([RouteMap, {LinkedNode, Client});
 
     {chat_msg, From, To, Msg} ->
-      Observer ! {route_msg, self(), From, To},
-      route_chat_msg(From, To, Msg),
+      Observer ! {route_msg, self(), From, To}
+      %route_chat_msg(From, To, Msg),
   end.
 
-connect_client(Client, LinkedNodes, Observer) ->
-  % TODO: inform_linked_nodes_about_connected_client(Client, LinkedNodes),
+%connect_client(Client, LinkedNodes, Observer) ->
+  % TODO: inform_linked_nodes_about_connected_client(Client, LinkedNodes) -> [inform_next_node_about_connected_client(Client,LinkedNode) || LinkedNode <- LinkedNodes].
+  % inform_next_node_about_connected_client(Client,Node) -> LinkedNode ! {new_client_online, self(), Client}.
 
-disconnect_client(Client, LinkedNodes, Observer) ->
+%disconnect_client(Client, LinkedNodes, Observer) ->
   % TODO: inform_linked_nodes_about_disconnected_client(Client, LinkedNodes),
 
-route_chat_msg(From, To, Msg) when To == self() ->
+%route_chat_msg(From, To, Msg) when To == self() ->
   % TODO: route_msg_to_optimal_linked_node
-  run_node(ConnectedClients, LinkedNodes, Observer)
+  %run_node(ConnectedClients, LinkedNodes, Observer)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% HELPERS

@@ -11,13 +11,12 @@ run() ->
 
   ConnectedNode = choose_node(Enodes),
   io:format("Connecting to ~p...~n", [ConnectedNode]),
-  connect_client(ConnectedNode)
-  ui:run().
+  connect_client(ConnectedNode).
 
 
 connect_client(Node) ->
-  net_kernel:connect_node(ConnectedNode),
-  ConnectedNode ! {client_connected, self()}.
+  net_kernel:connect_node(Node),
+  Node ! {client_connected, self()}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -32,7 +31,7 @@ choose_node(Enodes) ->
     {error, _} ->
       io:format("please enter a number~n"),
       [ io:format("~2.. B. ~p~n", [I, Enode]) || {Enode, I} <- lists:zip(Enodes, lists:seq(1, length(Enodes))) ],
-      get_int(Prompt)
+      choose_node(Enodes)
   end.
 
 % helper for switchable debug print output
