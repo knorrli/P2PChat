@@ -82,7 +82,10 @@ run_node(ConnectedClients, LinkedNodes, Observer) ->
       run_node(lists:delete(Client), LinkedNodes, Observer);
 
     %{new_client_online, LinkedNode, Client} ->
-      %run_node(ConnectedClients, LinkedNodes, Observer, lists:flatten([RouteMap, {LinkedNode, Client});
+      %run_node(ConnectedClients, LinkedNodes, Observer, lists:flatten([RouteMap, {LinkedNode, Client}]);
+
+    %{client_offline, Client} -> 
+      %run_node(ConnectedClients, LinkedNodes, Observer, lists:keydelete(Client, 2, RouteMap));
 
     {chat_msg, From, To, Msg} ->
       Observer ! {route_msg, self(), From, To}
@@ -94,7 +97,8 @@ run_node(ConnectedClients, LinkedNodes, Observer) ->
   % inform_next_node_about_connected_client(Client,Node) -> LinkedNode ! {new_client_online, self(), Client}.
 
 %disconnect_client(Client, LinkedNodes, Observer) ->
-  % TODO: inform_linked_nodes_about_disconnected_client(Client, LinkedNodes),
+  % TODO: inform_linked_nodes_about_disconnected_client(Client, LinkedNodes) -> [inform_next_node_about_disconnected_client(Client,LinkedNode) || LinkedNode <- LinkedNodes].
+  % inform_next_node_about_disconnected_client(Client,Node) -> LinkedNode ! {client_offline, Client}.
 
 %route_chat_msg(From, To, Msg) when To == self() ->
   % TODO: route_msg_to_optimal_linked_node
