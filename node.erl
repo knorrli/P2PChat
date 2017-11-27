@@ -8,7 +8,6 @@ init() ->
   % this should not be necessary but observer isn't available otherwise??
   %
   global:sync(),
-  helpers:debug("~p: running~n", [self()]),
 
   receive
     { initialize_links, LinkedNodes } ->
@@ -106,7 +105,7 @@ route_chat_msg(From, To, Msg, ConnectedClients, LinkedNodes) ->
   case lists:member(To, ConnectedClients) of
     % Send message to connected Client
     % TODO: Client support
-    true -> [ global:send(Client, {chat_msg}) || Client <- ConnectedClients ];
+    true -> [ global:send(Client, {incoming_msg, Msg, From}) || Client <- ConnectedClients ];
 
     % route message to next Node that has a connection to Client
     false ->

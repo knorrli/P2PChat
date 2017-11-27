@@ -2,126 +2,86 @@
 -export([run/0]).
 -define(OUTFILE, "out_client.hrl").
 
--define(HELP, "!h").
--define(START_CHAT, "!c").
--define(END_CHAT, "!e").
--define(DISCONNECT_CLIENT, "!d").
--define(LIST_USERS, "!l").
-
 run() ->
   {ok, [Cookie|Enodes]} = file:consult('./enodes.conf'),
   io:format("node: ~p, self: ~p, node(self()): ~p~n", [node(), self(), node(self())]),
 
   Username = get_username(),
 
-  io:format("init net_kernel~n"),
+  io:format("init net_kernel~n", []),
   net_kernel:start([Username, longnames]),
 
   io:format("node: ~p, self: ~p, node(self()): ~p~n", [node(), self(), node(self())]),
 
   ACookie = list_to_atom(integer_to_list(Cookie)),
-  io:format("set cookie to ~p~n", [Cookie]),
+  io:format("set cookie to ~p~n", [ACookie]),
   erlang:set_cookie(node(), ACookie),
   io:format("current cookie: ~p~n", [erlang:get_cookie()]),
 
   ConnectedNode = choose_node(Enodes),
   connect_client(ConnectedNode),
   % we can only access the global information after connecting
-  io:format("Welcome to P2PChat. enter !h for help.~n"),
-  display_ui(ConnectedNode).
+  spawn(ui, start, [self()]),
 
-display_ui(ConnectedNode) ->
-  prompt(ConnectedNode).
+  maintain_connection(ConnectedNode).
+
+maintain_connection(ConnectedNode) ->
+  receive
+    {start_chat, PeerName} -> start_chat(PeerName);
+    {outgoing_msg, Msg, To} -> send_chat_msg(Msg, ConnectedNode, To);
+    {incoming_msg, Msg, From} -> ui:render_msg(Msg, From);
+    end_chat -> end_chat();
+    quit -> quit(ConnectedNode);
+    list_users -> ui:render_clients(get_available_clients(ConnectedNode))
+  end,
+  maintain_connection(ConnectedNode).
+
 
 connect_client(Node) ->
-  io:format("Connecting to ~p... ", [Node]),
+  io:format("Connecting to ~p...~n", [Node]),
   net_kernel:connect_node(Node),
   % sync global state (although this should happen automatically?)
+  io:format("Syncing global state...~n"),
   global:sync(),
+  io:format("Registering node name...~n"),
   global:register_name(node(), self()),
+  io:format("Sending {connect_client} Msg...~n"),
   global:send(Node, {connect_client, node()}),
   io:format("Done.~n").
 
 
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% HELPERS
-%%
-
-prompt(ConnectedNode) ->
-  Input = string:strip(io:get_line("> "), right, $\n),
-  input_action(ConnectedNode, Input).
-
-input_action(ConnectedNode, Input) ->
-  io:format("Input is ~p~n", [Input]),
-  Cmd = string:sub_word(Input, 1),
-  case Cmd of
-    ?START_CHAT ->
-      PeerName = list_to_atom(string:sub_word(Input, 2)),
-      io:format("starting chat with ~p~n", [PeerName]),
-      start_chat(ConnectedNode, PeerName);
-    ?DISCONNECT_CLIENT -> disconnect_client(ConnectedNode);
-    ?END_CHAT -> end_chat();
-    ?HELP -> display_help(ConnectedNode);
-    ?LIST_USERS -> list_connected_clients(ConnectedNode);
-    _ -> display_help(ConnectedNode)
-  end.
-
-start_chat(ConnectedNode, PeerName) ->
-  % TODO: again not sure about this...
-  global:sync(),
-  io:format("You are now chatting with ~p. Type !h for help.~n", [PeerName]),
-  Input = string:strip(io:get_line("> "), right, $\n),
-  case string:sub_word(Input, 1) of
-    ?DISCONNECT_CLIENT -> disconnect_client(ConnectedNode);
-    ?END_CHAT -> end_chat();
-    ?HELP -> display_help(ConnectedNode);
-    ?LIST_USERS -> list_connected_clients(ConnectedNode);
-    _ -> send_chat_msg(Input, ConnectedNode, PeerName)
-  end.
+start_chat(PeerName) ->
+  ui:render_chat(self(), PeerName).
 
 send_chat_msg(Msg, ConnectedNode, PeerName) ->
-  io:format("globally registered: ~p~n", [global:registered_names()]),
-  io:format("Sending Msg (~p) to ~p via ~p~n", [Msg, PeerName, ConnectedNode]),
   try
     global:send(ConnectedNode, {chat_msg, node(), PeerName, Msg})
   catch
     {badarg, _} ->
-      io:format("ERROR: The chat message could not be sent."),
-      prompt(ConnectedNode)
+      % TODO: Error handling
+      io:format("ERROR: The chat message could not be sent.")
   end.
 
 end_chat() ->
   ok.
 
-display_help(ConnectedNode) ->
-  io:format("HELP~n"),
-  io:format("The following commands are available:~n"),
-  io:format("~p <username> | start chat with the selected user.~n", [?START_CHAT]),
-  io:format("~p | disconnect from the network.~n", [?DISCONNECT_CLIENT]),
-  io:format("~p | end chat.~n", [?END_CHAT]),
-  io:format("~p | display this help message.~n", [?HELP]),
-  io:format("~p | list users.~n", [?LIST_USERS]),
-  prompt(ConnectedNode).
-
-disconnect_client(ConnectedNode) ->
-  io:format("Node: ~p~n", [ConnectedNode]),
+quit(ConnectedNode) ->
   global:send(ConnectedNode, {disconnect_client, self()}),
   receive
     {disconnect_successful, Node} -> io:format("Disconnected from ~p~n", [Node])
   end,
+  global:unregister_name(node()),
   ok.
 
-list_connected_clients(ConnectedNode) ->
+get_available_clients(ConnectedNode) ->
   global:send(ConnectedNode, { request_available_clients, self() }),
   receive
-    {available_clients, AvailableClients} ->
-      io:format("~p: received available clients: ~p~n", [self(), AvailableClients]),
-      [ io:format("~p: ~p~n", [I, Client]) || {I, Client} <- AvailableClients ]
-  end,
-  prompt(ConnectedNode).
+    {available_clients, AvailableClients} -> AvailableClients
+  end.
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% HELPERS
 
 % TODO: improve error handling
 choose_node(Enodes) ->

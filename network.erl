@@ -25,10 +25,10 @@ run() ->
 
 observe_network() ->
   receive
-    {node_status, Node, ConnectedClients, LinkedNodes} -> helpers:log("~p: Clients: ~p, Links: ~p~n", [Node, ConnectedClients, LinkedNodes]);
-    {client_connected, Node, Client} -> helpers:log("~p: client ~p connected~n", [Node, Client]);
-    {client_disconnected, Node, Client} -> helpers:log("~p: client ~p disconnected~n", [Node, Client]);
-    {route_msg, Recipient, From, To} -> helpers:log("~p: routing message from ~p to ~p~n", [Recipient, From, To])
+    {node_status, Node, ConnectedClients, LinkedNodes} -> io:format("~p: Clients: ~p, Links: ~p~n", [Node, ConnectedClients, LinkedNodes]);
+    {client_connected, Node, Client} -> io:format("~p: client ~p connected~n", [Node, Client]);
+    {client_disconnected, Node, Client} -> io:format("~p: client ~p disconnected~n", [Node, Client]);
+    {route_msg, Recipient, From, To} -> io:format("~p: routing message from ~p to ~p~n", [Recipient, From, To])
   end,
   observe_network().
 
