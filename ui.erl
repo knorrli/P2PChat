@@ -1,7 +1,8 @@
 -module(ui).
 
--export([start/1, render_msg/2, render_clients/1, render_chat/2]).
+-export([start/1, render_msg/3, render_peers/2, render_chat/2]).
 
+-define(PING, "!p").
 -define(HELP, "!h").
 -define(START_CHAT, "!c").
 -define(END_CHAT, "!e").
@@ -16,19 +17,26 @@ start(Client) ->
   prompt(Client).
 
 % public facing, lets the client write to output
-render_msg(Msg, From) ->
-  io:format("<~s>: ~s~n", [From, Msg]).
+render_msg(Client, Msg, From) ->
+  io:format("<~s>: ~s~n", [From, Msg]),
+  chat_prompt(Client).
 
-render_clients(Clients) ->
-  ClientRepresentation = [ io_lib:format("~2.. B. ~p~n", [I, Enode]) || {I, Enode} <- lists:zip(lists:seq(1, length(Clients)), Clients) ],
-  io:format(lists:join(ClientRepresentation, "~n")).
+render_peers(Client, Peers) when Peers =:= [] ->
+  io:format("There are no clients available, sorry.~n"),
+  prompt(Client);
+render_peers(Client, Peers) ->
+  PeerRepresentation = [ io_lib:format("~2.. B. ~p~n", [I, Enode]) || {I, Enode} <- lists:zip(lists:seq(1, length(Peers)), Peers) ],
+  io:format(lists:join(PeerRepresentation, "~n")),
+  prompt(Client).
 
 % prompt the user for an action and relay the chosen action to the client
 prompt(Client) ->
+  io:format("Prompt:~n"),
   Input = string:strip(io:get_line(?PROMPT), right, $\n),
   Cmd = string:sub_word(Input, 1),
 
   case Cmd of
+    ?PING -> Client ! ping;
     ?LIST_USERS -> Client ! list_users;
     ?START_CHAT ->
       PeerName = list_to_atom(string:sub_word(Input, 2)),
@@ -48,7 +56,7 @@ chat_prompt(Client) ->
     ?QUIT -> Client ! quit;
     ?HELP -> display_help(Client);
     _ ->
-      render_msg(Input, node())
+      render_msg(Client, Input, node())
   end.
 
 % TODO
