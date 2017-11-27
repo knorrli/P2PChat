@@ -1,55 +1,57 @@
 -module(node).
 
--export([ init/1 ]).
+-export([ init/0 ]).
 
 
-init(Observer) ->
+init() ->
   global:register_name(node(), self()),
-  Observer ! { node_initialized, self(), node() },
+  % this should not be necessary but observer isn't available otherwise??
+  %
+  global:sync(),
   helpers:debug("~p: running~n", [self()]),
 
   receive
-    {initialize_links, LinkedNodes, Observer } ->
-      Observer ! {node_linked, self(), LinkedNodes},
+    {initialize_links, LinkedNodes } ->
       % initially, no clients can be connected
-      run_node([], LinkedNodes, Observer)
-      % RouteMap = [],
-      % run_node([], LinkedNodes, Observer, RouteMap)
+      LinkedNodesWithClients = [ {LinkedNode, []} || LinkedNode <- LinkedNodes ],
+      run_node([], LinkedNodesWithClients)
   end.
 
 
-run_node(ConnectedClients, LinkedNodes, Observer) ->
+run_node(ConnectedClients, LinkedNodes) ->
+  global:send(observer, {node_status, self(), ConnectedClients, LinkedNodes}),
   receive
-    {client_connected, Client} ->
-      Observer ! {client_connected, self(), Client},
-      %connect_client(Client, ConnectedClients, LinkedNodes, Observer),
-      run_node([Client|ConnectedClients], LinkedNodes, Observer);
+    {connect_client, Client} ->
+      connect_client(Client, LinkedNodes),
+      run_node([Client|ConnectedClients], LinkedNodes);
 
-    {client_disconnected, Client} ->
-      Observer ! {client_disconnected, self(), Client},
-      %disconnect_client(Client, ConnectedClients, LinkedNodes, Observer),
-      run_node(lists:delete(Client), LinkedNodes, Observer);
+    {disconnect_client, Client} ->
+      global:send(observer, {client_disconnected, self(), Client}),
+      disconnect_client(Client, ConnectedClients, LinkedNodes),
+      run_node(lists:delete(Client), LinkedNodes);
 
-    %{new_client_online, LinkedNode, Client} ->
-      %run_node(ConnectedClients, LinkedNodes, Observer, lists:flatten([RouteMap, {LinkedNode, Client}]);
+    {new_client_online, LinkedNode, Client, Distance} ->
+      run_node(ConnectedClients, LinkedNodes);
 
-    %{client_offline, Client} -> 
-      %run_node(ConnectedClients, LinkedNodes, Observer, lists:keydelete(Client, 2, RouteMap));
+    {client_offline, Client} ->
+      run_node(ConnectedClients, LinkedNodes);
 
     {chat_msg, From, To, Msg} ->
-      Observer ! {route_msg, self(), From, To}
+      global:send(observer, {route_msg, self(), From, To})
       %route_chat_msg(From, To, Msg),
   end.
 
-%connect_client(Client, LinkedNodes, Observer) ->
+connect_client(Client, LinkedNodes) ->
+  global:send(observer, {client_connected, self(), Client}).
   % TODO: inform_linked_nodes_about_connected_client(Client, LinkedNodes) -> [inform_next_node_about_connected_client(Client,LinkedNode) || LinkedNode <- LinkedNodes].
   % inform_next_node_about_connected_client(Client,Node) -> LinkedNode ! {new_client_online, self(), Client}.
 
-%disconnect_client(Client, LinkedNodes, Observer) ->
-  % TODO: inform_linked_nodes_about_disconnected_client(Client, LinkedNodes) -> [inform_next_node_about_disconnected_client(Client,LinkedNode) || LinkedNode <- LinkedNodes].
-  % inform_next_node_about_disconnected_client(Client,Node) -> LinkedNode ! {client_offline, Client}.
+% Let other 
+disconnect_client(Client, LinkedNodes) ->
+  global:send(observer, {client_disconnected, self(), Client}),
+  [ Node ! {client_disconnected, Client} || [Node, _] <- LinkedNodes ].
 
 %route_chat_msg(From, To, Msg) when To == self() ->
   % TODO: route_msg_to_optimal_linked_node
-  %run_node(ConnectedClients, LinkedNodes, Observer)
+  %run_node(ConnectedClients, LinkedNodes)
 
