@@ -2,6 +2,12 @@
 -export([run/0]).
 -define(OUTFILE, "out_client.hrl").
 
+-define(HELP, "!h").
+-define(START_CHAT, "!c").
+-define(END_CHAT, "!e").
+-define(DISCONNECT_CLIENT, "!d").
+-define(LIST_USERS, "!l").
+
 run() ->
   {ok, [Cookie|Enodes]} = file:consult('./enodes.conf'),
   io:format("node: ~p, self: ~p, node(self()): ~p~n", [node(), self(), node(self())]),
@@ -18,8 +24,12 @@ run() ->
 
   ConnectedNode = choose_node(Enodes),
   connect_client(ConnectedNode),
+  % we can only access the global information after connecting
   io:format("Welcome to P2PChat. enter !h for help.~n"),
   display_ui(ConnectedNode).
+
+display_ui(ConnectedNode) ->
+  prompt(ConnectedNode).
 
 connect_client(Node) ->
   io:format("Connecting to ~p... ", [Node]),
@@ -29,16 +39,6 @@ connect_client(Node) ->
   global:send(Node, {connect_client, self()}),
   io:format("Done.~n").
 
-display_ui(ConnectedNode) ->
-  prompt(ConnectedNode).
-
-disconnect_client(ConnectedNode) ->
-  global:send(ConnectedNode, {disconnect_client, self()}),
-  receive
-    {disconnect_successful, Node} -> io:format("Disconnected from ~p~n", [Node])
-  end,
-  choose_node(Enodes).
-
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -47,26 +47,51 @@ disconnect_client(ConnectedNode) ->
 
 prompt(ConnectedNode) ->
   case io:fread("> ", "~s") of
-    {ok, [Input]} -> parse_input(ConnectedNode, Input);
+    {ok, [Input]} -> input_action(ConnectedNode, Input);
     {error, _} ->
       io:format("USER INPUT ERROR! Help!!!")
   end.
 
-parse_input(ConnectedNode, Input) ->
+input_action(ConnectedNode, Input) ->
   case Input of
-    "!h" -> display_help();
-    "!d" -> disconnect(ConnectedNode);
+    [?START_CHAT|Username] -> start_chat(Username);
+    ?DISCONNECT_CLIENT -> disconnect_client(ConnectedNode);
+    ?END_CHAT -> end_chat();
+    ?HELP -> display_help(ConnectedNode);
+    ?LIST_USERS -> list_connected_clients(ConnectedNode);
     _ -> ok
   end.
 
-display_help() ->
+start_chat(Username) ->
+  io:format("You are now chatting with ~p. Type !h for help.~n", [Username]).
+
+end_chat() ->
+  ok.
+
+display_help(ConnectedNode) ->
   io:format("HELP~n"),
   io:format("The following commands are available:~n"),
-  io:format("!c <username> | start chat with the selected user.~n"),
-  io:format("!d | disconnect from the network.~n"),
-  io:format("!h | display this help message.~n"),
-  io:format("!l | list users.~n"),
-  prompt().
+  io:format("~p <username> | start chat with the selected user.~n", [?START_CHAT]),
+  io:format("~p | disconnect from the network.~n", [?DISCONNECT_CLIENT]),
+  io:format("~p | end chat.~n", [?END_CHAT]),
+  io:format("~p | display this help message.~n", [?HELP]),
+  io:format("~p | list users.~n", [?LIST_USERS]),
+  prompt(ConnectedNode).
+
+disconnect_client(ConnectedNode) ->
+  io:format("Node: ~p~n", [ConnectedNode]),
+  global:send(ConnectedNode, {disconnect_client, self()}),
+  receive
+    {disconnect_successful, Node} -> io:format("Disconnected from ~p~n", [Node])
+  end,
+  ok.
+
+list_connected_clients(ConnectedNode) ->
+  ConnectedNode ! { request_available_clients, self() },
+  receive
+    {available_clients, AvailableClients} ->
+      [ io:format("~p: ~p~n", [I, Client]) || {I, Client} <- AvailableClients ]
+  end.
 
 
 

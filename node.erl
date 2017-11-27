@@ -26,9 +26,11 @@ run_node(ConnectedClients, LinkedNodes) ->
       run_node([Client|ConnectedClients], LinkedNodes);
 
     {disconnect_client, Client} ->
-      global:send(observer, {client_disconnected, self(), Client}),
       disconnect_client(Client, ConnectedClients, LinkedNodes),
-      run_node(lists:delete(Client), LinkedNodes);
+      run_node(lists:delete(Client, ConnectedClients), LinkedNodes);
+
+    {request_available_clients, Client} ->
+      Client ! {available_clients, lists:flatten([ C || [{_, [C]}] <- LinkedNodes ])};
 
     {new_client_online, LinkedNode, Client, Distance} ->
       run_node(ConnectedClients, LinkedNodes);
@@ -47,7 +49,7 @@ connect_client(Client, LinkedNodes) ->
   % inform_next_node_about_connected_client(Client,Node) -> LinkedNode ! {new_client_online, self(), Client}.
 
 % Let other 
-disconnect_client(Client, LinkedNodes) ->
+disconnect_client(Client, ConnectedClients, LinkedNodes) ->
   global:send(observer, {client_disconnected, self(), Client}),
   [ Node ! {client_disconnected, Client} || [Node, _] <- LinkedNodes ].
 
