@@ -1,4 +1,5 @@
 hosts_alive.conf
+hosts.tmp
 enodes.conf
 out.hrl
 
