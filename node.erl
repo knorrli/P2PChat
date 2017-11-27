@@ -11,7 +11,7 @@ init() ->
   helpers:debug("~p: running~n", [self()]),
 
   receive
-    {initialize_links, LinkedNodes } ->
+    { initialize_links, LinkedNodes } ->
       % initially, no clients are connected
       LinkedNodesWithClients = [ {LinkedNode, []} || LinkedNode <- LinkedNodes ],
       run_node([], LinkedNodesWithClients)
@@ -40,7 +40,8 @@ run_node(ConnectedClients, LinkedNodes) ->
       io:format("~p: Client ~p requests available clients!~n", [self(), Client]),
       AvailableClients = [C || {C, _Dist} <- lists:flatten([Clients || {_, Clients} <- LinkedNodes])],
       io:format("~p: The following Clients are available: ~p~n", [self(), AvailableClients]),
-      Client ! {available_clients, AvailableClients};
+      Client ! {available_clients, AvailableClients},
+      run_node(ConnectedClients, LinkedNodes);
 
     % TODO: Implement Chandy-Misra for finding shortest path for msg routing
     % The current algorithm just informs the nodes until every node knows about
@@ -52,10 +53,8 @@ run_node(ConnectedClients, LinkedNodes) ->
       io:format("~p: updating node ~p:~n", [self(), LinkedNode]),
       UpdatedLinkedNodes = lists:map(
                              fun({Node, ClientList}) ->
-                                 % io:format("Step Node: ~p~n", [Node]),
                                  case Node =:= LinkedNode of
-                                   true -> 
-                                     % io:format("Node is == LinkedNode~n"),
+                                   true ->
                                      % add {Client, Distance} to ClientList or update {Client Distance}
                                      case lists:keymember(Client, 1, ClientList) of
                                        true -> NewClientList = lists:keyreplace(Client, 1, ClientList, {Client, Distance});
@@ -64,7 +63,6 @@ run_node(ConnectedClients, LinkedNodes) ->
                                      {Node, NewClientList};
                                    % don't modify the other nodes
                                    false ->
-                                     % io:format("Node is /== LinkedNode~n"),
                                      {Node, ClientList}
                                  end
                              end, LinkedNodes),
@@ -83,12 +81,15 @@ run_node(ConnectedClients, LinkedNodes) ->
       [ Node ! {new_client_online, self(), Client, Distance + 1} || [{Node, _}] <- UninformedNodes ],
       run_node(ConnectedClients, UpdatedLinkedNodes);
 
-    {client_offline, Client} ->
+    {client_offline, _} ->
       run_node(ConnectedClients, LinkedNodes);
 
     {chat_msg, From, To, Msg} ->
-      global:send(observer, {route_msg, self(), From, To})
-      %route_chat_msg(From, To, Msg),
+      io:format("~p: received {chat_msg, ~p, ~p, ~p}~n", [self(), From, To, Msg]),
+      global:send(observer, {route_msg, self(), From, To}),
+      route_chat_msg(From, To, Msg, ConnectedClients, LinkedNodes),
+      io:format("~p: routed message, now restarting receive loop~n", [self()]),
+      run_node(ConnectedClients, LinkedNodes)
   end.
 
 connect_client(Client, LinkedNodes) ->
@@ -101,7 +102,26 @@ disconnect_client(Client, _, LinkedNodes) ->
   [ Node ! {client_disconnected, Client} || [Node, _] <- LinkedNodes ],
   Client ! {disconnect_successful, self()}.
 
-%route_chat_msg(From, To, Msg) when To == self() ->
-% TODO: route_msg_to_optimal_linked_node
-%run_node(ConnectedClients, LinkedNodes)
+route_chat_msg(From, To, Msg, ConnectedClients, LinkedNodes) ->
+  case lists:member(To, ConnectedClients) of
+    % Send message to connected Client
+    % TODO: Client support
+    true -> [ global:send(Client, {chat_msg}) || Client <- ConnectedClients ];
+
+    % route message to next Node that has a connection to Client
+    false ->
+      NodesWithClient = lists:filtermap(fun({N, ClientList}) ->
+                                            case lists:keyfind(To, 1, ClientList) of
+                                              {_, Dist} -> {true, {N, Dist}};
+                                              _ -> false
+                                            end
+                                        end,
+                                        LinkedNodes),
+      io:format("NodesWithClient: ~p~n", [NodesWithClient]),
+      {_MinDist, ClosestNode} = lists:min([ {Dist, N} || {N, Dist} <- NodesWithClient ]),
+      io:format("~p: forwarding chat msg to ~p~n", [self(), ClosestNode]),
+      ClosestNode ! {chat_msg, From, To, Msg}
+  end.
+
+
 

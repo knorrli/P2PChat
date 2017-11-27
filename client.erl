@@ -57,9 +57,9 @@ input_action(ConnectedNode, Input) ->
   Cmd = string:sub_word(Input, 1),
   case Cmd of
     ?START_CHAT ->
-      Username = string:sub_word(Input, 2),
-      io:format("starting chat with ~p~n", [Username]),
-      start_chat(ConnectedNode, Username);
+      PeerName = list_to_atom(string:sub_word(Input, 2)),
+      io:format("starting chat with ~p~n", [PeerName]),
+      start_chat(ConnectedNode, PeerName);
     ?DISCONNECT_CLIENT -> disconnect_client(ConnectedNode);
     ?END_CHAT -> end_chat();
     ?HELP -> display_help(ConnectedNode);
@@ -67,23 +67,26 @@ input_action(ConnectedNode, Input) ->
     _ -> display_help(ConnectedNode)
   end.
 
-start_chat(ConnectedNode, Username) ->
-  io:format("You are now chatting with ~p. Type !h for help.~n", [Username]),
+start_chat(ConnectedNode, PeerName) ->
+  % TODO: again not sure about this...
+  global:sync(),
+  io:format("You are now chatting with ~p. Type !h for help.~n", [PeerName]),
   Input = string:strip(io:get_line("> "), right, $\n),
   case string:sub_word(Input, 1) of
     ?DISCONNECT_CLIENT -> disconnect_client(ConnectedNode);
     ?END_CHAT -> end_chat();
     ?HELP -> display_help(ConnectedNode);
     ?LIST_USERS -> list_connected_clients(ConnectedNode);
-    _ -> send_chat_msg(Input, ConnectedNode, Username)
+    _ -> send_chat_msg(Input, ConnectedNode, PeerName)
   end.
 
-send_chat_msg(Msg, ConnectedNode, Username) ->
-  io:format("Sending Msg (~p) to ~p via ~p~n", [Msg, Username, ConnectedNode]),
+send_chat_msg(Msg, ConnectedNode, PeerName) ->
+  io:format("globally registered: ~p~n", [global:registered_names()]),
+  io:format("Sending Msg (~p) to ~p via ~p~n", [Msg, PeerName, ConnectedNode]),
   try
-    global:send(ConnectedNode, {chat_msg, node(), Username, Msg})
+    global:send(ConnectedNode, {chat_msg, node(), PeerName, Msg})
   catch
-      badarg ->
+    {badarg, _} ->
       io:format("ERROR: The chat message could not be sent."),
       prompt(ConnectedNode)
   end.
