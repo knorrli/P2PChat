@@ -26,7 +26,6 @@ run() ->
   maintain_connection(ConnectedNode).
 
 maintain_connection(ConnectedNode) ->
-  io:format("maintain_connection~n"),
   receive
     ping -> ping();
     {start_chat, PeerName} -> start_chat(PeerName);
@@ -48,7 +47,7 @@ connect_client(Username, Node) ->
   global:sync(),
   io:format("Global after sync: ~p~n", [global:registered_names()]),
   io:format("Calling global:register_name(~p, ~p)~n", [Username, self()]),
-  global:register_name(Username, self()),
+  global:register_name(node(), self()),
   io:format("Sending {connect_client} Msg...~n"),
   global:send(Node, {connect_client, node()}),
   io:format("Done.~n").
@@ -60,6 +59,7 @@ start_chat(PeerName) ->
   ui:render_chat(self(), PeerName).
 
 send_chat_msg(Msg, ConnectedNode, PeerName) ->
+  io:format("~p: sending chat msg ~p to ~p~n", [self(), Msg, PeerName]),
   try
     global:send(ConnectedNode, {chat_msg, node(), PeerName, Msg})
   catch

@@ -52,7 +52,9 @@ run_node(ConnectedClients, LinkedNodes) ->
       io:format("~p: updating node ~p:~n", [self(), LinkedNode]),
       UpdatedLinkedNodes = lists:map(
                              fun({Node, ClientList}) ->
+                                 % If the current node is the node that has the client attached
                                  case Node =:= LinkedNode of
+                                   % Then
                                    true ->
                                      % add {Client, Distance} to ClientList or update {Client Distance}
                                      case lists:keymember(Client, 1, ClientList) of
@@ -65,7 +67,6 @@ run_node(ConnectedClients, LinkedNodes) ->
                                      {Node, ClientList}
                                  end
                              end, LinkedNodes),
-      % io:format("~p: Updated Nodes: ~p~n", [self(), UpdatedLinkedNodes]),
 
       % Inform other nodes about this new Client if they don't know about the Client yet
       NeedsToBeInformedAboutClient = fun({N, ClientList}) ->

@@ -40,8 +40,11 @@ deploy_node(Enode) ->
 
 % For each Enode, set up network connections to other nodes
 initialize_random_network(Enodes) ->
-  [ initialize_network_links(Node, lists:delete(Node, Enodes)) || Node <- Enodes ].
+  [ initialize_random_network_links(Node, Enodes) || Node <- Enodes ].
 
-initialize_network_links(Node, OtherNodes) ->
-  Node ! { initialize_links, OtherNodes }.
+initialize_random_network_links(Node, Enodes) ->
+   OtherNodes = lists:delete(Node, Enodes),
+   % removes 33% of the links
+   RandomNodes = lists:filter(fun(_) -> random:uniform(3) /= 1 end, OtherNodes),
+  Node ! { initialize_links, RandomNodes }.
 

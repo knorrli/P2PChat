@@ -19,19 +19,18 @@ start(Client) ->
 % public facing, lets the client write to output
 render_msg(Client, Msg, From) ->
   io:format("<~s>: ~s~n", [From, Msg]),
-  chat_prompt(Client).
+  chat_prompt(Client, From).
 
 render_peers(Client, Peers) when Peers =:= [] ->
   io:format("There are no clients available, sorry.~n"),
   prompt(Client);
 render_peers(Client, Peers) ->
-  PeerRepresentation = [ io_lib:format("~2.. B. ~p~n", [I, Enode]) || {I, Enode} <- lists:zip(lists:seq(1, length(Peers)), Peers) ],
-  io:format(lists:join(PeerRepresentation, "~n")),
+  PeersWithIndex = lists:zip(lists:seq(1, length(Peers)), Peers),
+  lists:foreach(fun({I, P}) -> io:format("~p: ~p~n", [I, P]) end, PeersWithIndex),
   prompt(Client).
 
 % prompt the user for an action and relay the chosen action to the client
 prompt(Client) ->
-  io:format("Prompt:~n"),
   Input = string:strip(io:get_line(?PROMPT), right, $\n),
   Cmd = string:sub_word(Input, 1),
 
@@ -46,8 +45,9 @@ prompt(Client) ->
     _ -> display_help(Client)
   end.
 
-chat_prompt(Client) ->
-  Input = string:strip(io:get_line(?PROMPT), right, $\n),
+chat_prompt(Client, PeerName) ->
+  Prompt = io_lib:format("<~p>: ", [node(Client)]),
+  Input = string:strip(io:get_line(Prompt), right, $\n),
   Cmd = string:sub_word(Input, 1),
 
   case Cmd of
@@ -56,7 +56,7 @@ chat_prompt(Client) ->
     ?QUIT -> Client ! quit;
     ?HELP -> display_help(Client);
     _ ->
-      render_msg(Client, Input, node())
+      Client ! {outgoing_msg, Input, PeerName}
   end.
 
 % TODO
@@ -65,7 +65,7 @@ start_chat(Client, PeerName) ->
 
 render_chat(Client, PeerName) ->
   io:format("You are now chatting with <~s>~n", [PeerName]),
-  chat_prompt(Client).
+  chat_prompt(Client, PeerName).
 
 
 display_help(Client) ->
