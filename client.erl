@@ -21,7 +21,7 @@ run() ->
   ConnectedNode = choose_node(Enodes),
   connect_client(Username, ConnectedNode),
   % we can only access the global information after connecting
-  spawn(ui, start, [self()]),
+  spawn(ui, start, [self(), get_available_clients(ConnectedNode)]),
 
   maintain_connection(ConnectedNode).
 
