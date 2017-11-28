@@ -17,7 +17,6 @@ focus of the project will be on the following stuff:
    algorithms) for routing chat messages from one node to any other node in the
    network.
 
-
 ### Installation
 
 1. Get a working version of the TEDA environment running on your machine
@@ -30,7 +29,19 @@ In the `p2pchat` dir, deploy the app to TEDA using the provided scripts
 1. `$ ../../scripts/depl_app.sh p2pchat make hosts_alive.conf`
 2. `$ ../../scripts/depl_enodes.sh p2pchat hosts_alive.conf`
 
-Then run the app on the TEDA distributed environment with this command:
+### Running the application
 
-`$ ../../scripts/run.sh p2pchat "watcher:run()" hosts_alive.conf diufpc80.unifr.ch <$USER>`
+First start by deploying a network of completely connected (TODO: randomly connected) erlang nodes
 
+`$ ../../scripts/run.sh p2pchat "network:run()" hosts_alive.conf diufpc81.unifr.ch <username>`
+
+Then you can attach the chat client to one of the nodes in the network:
+
+```
+$ erl
+> c(client).
+> client:run().
+```
+
+### Next Up
+When you connect a second client to another node in the network, these two clients should later be able to communicate with each other.

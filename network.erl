@@ -8,13 +8,15 @@
 % observes the different network nodes.
 run() ->
 
+  % register self as global observer
+  global:register_name(observer, self()),
+
   {{Year, Month, Day}, {Hour, Minute, _}} = erlang:localtime(),
   file:write_file(?OUTFILE, io_lib:format("~p-~p-~p ~p:~p | creating random network~n", [Year, Month, Day, Hour, Minute]), [write]),
   % 1. create random network
   %   1.1 deploy nodes on TEDA
   {ok, [_|Enodes]} = file:consult('./enodes.conf'),
   Nodes = deploy_nodes(Enodes),
-  helpers:debug("Nodes: ~p~n", [Nodes]),
 
   %   1.2 initialize network connections
   initialize_random_network(Nodes),
@@ -23,8 +25,10 @@ run() ->
 
 observe_network() ->
   receive
-    {client_connected, Node, Client} -> helpers:log("~p: client ~p connected~n", [Node, Client]);
-    {route_msg, Recipient, From, To} -> helpers:log("~p: routing message from ~p to ~p~n", [Recipient, From, To])
+    {node_status, Node, ConnectedClients, LinkedNodes} -> io:format("~p: Clients: ~p, Links: ~p~n", [Node, ConnectedClients, LinkedNodes]);
+    {client_connected, Node, Client} -> io:format("~p: client ~p connected~n", [Node, Client]);
+    {client_disconnected, Node, Client} -> io:format("~p: client ~p disconnected~n", [Node, Client]);
+    {route_msg, Recipient, From, To} -> io:format("~p: routing message from ~p to ~p~n", [Recipient, From, To])
   end,
   observe_network().
 
@@ -32,19 +36,15 @@ deploy_nodes(Enodes) ->
   [ deploy_node(Enode) || Enode <- Enodes ].
 
 deploy_node(Enode) ->
-  Node = spawn(Enode, node, init, [self()]),
-  receive
-    { node_initialized, Pid, Name } -> helpers:log("~p: node registered as ~p~n", [Pid, Name])
-  end,
-  Node.
+  spawn(Enode, node, init, []).
 
 % For each Enode, set up network connections to other nodes
 initialize_random_network(Enodes) ->
-  [ initialize_network_links(Node, lists:delete(Node, Enodes)) || Node <- Enodes ].
+  [ initialize_random_network_links(Node, Enodes) || Node <- Enodes ].
 
-initialize_network_links(Node, OtherNodes) ->
-  Node ! { initialize_links, OtherNodes, self() },
-  receive
-    {node_linked, N, LinkedNodes} -> helpers:log("~p: linked to ~p~n", [N, LinkedNodes])
-  end.
+initialize_random_network_links(Node, Enodes) ->
+   OtherNodes = lists:delete(Node, Enodes),
+   % removes 33% of the links
+   RandomNodes = lists:filter(fun(_) -> random:uniform(3) /= 1 end, OtherNodes),
+  Node ! { initialize_links, RandomNodes }.
 
