@@ -69,7 +69,7 @@ send_chat_msg(Msg, ConnectedNode, PeerName) ->
   end.
 
 end_chat() ->
-  ok.
+  ui:prompt(self()).
 
 quit(ConnectedNode) ->
   global:send(ConnectedNode, {disconnect_client, self()}),
@@ -77,7 +77,7 @@ quit(ConnectedNode) ->
     {disconnect_successful, Node} -> io:format("Disconnected from ~p~n", [Node])
   end,
   global:unregister_name(node()),
-  ok.
+  init:stop().
 
 get_available_clients(ConnectedNode) ->
   global:send(ConnectedNode, { request_available_clients, self() }),
