@@ -47,7 +47,8 @@ prompt(Client, Peers) ->
            {N,[]} -> 
              PeerName = lists:nth(N, Peers),
              Message = string:sub_word(Input, 2),
-             Client ! {outgoing_msg, Message, PeerName};
+             Client ! {outgoing_msg, Message, PeerName},
+             prompt(Client, Peers);
            _ -> display_help(), prompt(Client,Peers)
          end
   end.
