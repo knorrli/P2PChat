@@ -28,10 +28,8 @@ run() ->
 maintain_connection(ConnectedNode) ->
   receive
     ping -> ping();
-    {start_chat, PeerName} -> start_chat(PeerName);
     {outgoing_msg, Msg, To} -> send_chat_msg(Msg, ConnectedNode, To);
     {incoming_msg, Msg, From} -> ui:render_msg(self(), Msg, From);
-    end_chat -> end_chat();
     quit -> quit(ConnectedNode);
     list_users ->
       ui:render_peers(self(), get_available_clients(ConnectedNode))
@@ -55,9 +53,6 @@ connect_client(Username, Node) ->
 ping() ->
   io:format("PING~n").
 
-start_chat(PeerName) ->
-  ui:render_chat(self(), PeerName).
-
 send_chat_msg(Msg, ConnectedNode, PeerName) ->
   io:format("~p: sending chat msg ~p to ~p~n", [self(), Msg, PeerName]),
   try
@@ -67,9 +62,6 @@ send_chat_msg(Msg, ConnectedNode, PeerName) ->
       % TODO: Error handling
       io:format("ERROR: The chat message could not be sent.")
   end.
-
-end_chat() ->
-  ui:prompt(self()).
 
 quit(ConnectedNode) ->
   global:send(ConnectedNode, {disconnect_client, self()}),
