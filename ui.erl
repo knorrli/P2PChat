@@ -16,7 +16,7 @@ start(Client, Peers) ->
   prompt(Client, Peers).
 
 % public facing, lets the client write to output
-render_msg(Client, Msg, From) ->
+render_msg(_, Msg, From) ->
   io:format("<~s>: ~s~n", [From, Msg]).
   
 
