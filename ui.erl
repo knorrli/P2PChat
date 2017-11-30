@@ -44,8 +44,8 @@ prompt(Client, Peers) ->
     ?HELP -> display_help(), prompt(Client, Peers);
     _ -> Cmd2 = string:to_integer(Cmd),
          case Cmd2 of 
-           N when is_integer(N) -> 
-             PeerName = lists:nth(Cmd, Peers),
+           {N,[]} -> 
+             PeerName = lists:nth(N, Peers),
              Message = string:sub_word(Input, 2),
              Client ! {outgoing_msg, Message, PeerName};
            _ -> display_help(), prompt(Client,Peers)
