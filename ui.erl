@@ -1,6 +1,6 @@
 -module(ui).
 
--export([start/2, render_msg/3, render_peers/2, render_chat/2, prompt/2]).
+-export([start/2, render_msg/3, render_peers/2, prompt/2]).
 
 -define(PING, "!p").
 -define(HELP, "!h").
