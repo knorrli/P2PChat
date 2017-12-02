@@ -31,7 +31,7 @@ maintain_connection(ConnectedNode) ->
     {outgoing_msg, Msg, To} ->
       io:format("Received {outgoing_msg, ~p, ~p}", [Msg, To]),
       send_chat_msg(Msg, ConnectedNode, To),
-      ui:prompt(self, get_available_clients(ConnectedNode));
+      ui:prompt(self(), get_available_clients(ConnectedNode));
     {incoming_msg, Msg, From} ->
       io:format("Received {incoming_msg, ~p, ~p}", [Msg, From]),
       ui:render_msg(self(), Msg, From);
