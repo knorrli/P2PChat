@@ -18,7 +18,7 @@ start(Client, Peers) ->
 % public facing, lets the client write to output
 render_msg(_, Msg, From) ->
   io:format("<~s>: ~s~n", [From, Msg]).
-  
+
 
 render_peers(Client, Peers) when Peers =:= [] ->
   io:format("There are no clients available, sorry.~n"),
@@ -39,13 +39,14 @@ prompt(Client, Peers) ->
     ?QUIT -> Client ! quit;
     ?HELP -> display_help(), prompt(Client, Peers);
     _ -> Cmd2 = string:to_integer(Cmd),
-         case Cmd2 of 
-           {N,[]} -> 
+         case Cmd2 of
+           {N,[]} ->
              PeerName = lists:nth(N, Peers),
              Message = string:sub_word(Input, 2),
              Client ! {outgoing_msg, Message, PeerName},
              prompt(Client, Peers);
-           _ -> display_help(), prompt(Client,Peers)
+           _ -> display_help(),
+                prompt(Client,Peers)
          end
   end.
 
