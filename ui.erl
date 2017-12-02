@@ -30,6 +30,7 @@ render_peers(Client, Peers) ->
 
 % prompt the user for an action and relay the chosen action to the client
 prompt(Client, Peers) ->
+  io:format("Prompt started!"),
   Input = string:strip(io:get_line(?PROMPT), right, $\n),
   Cmd = string:sub_word(Input, 1),
 
@@ -37,14 +38,15 @@ prompt(Client, Peers) ->
     ?PING -> Client ! ping;
     ?LIST_USERS -> Client ! list_users;
     ?QUIT -> Client ! quit;
-    ?HELP -> display_help(), prompt(Client, Peers);
+    ?HELP -> display_help(),
+             prompt(Client, Peers);
     _ -> Cmd2 = string:to_integer(Cmd),
          case Cmd2 of
-           {N,[]} ->
+           {N, _} ->
              PeerName = lists:nth(N, Peers),
              Message = string:sub_word(Input, 2),
-             Client ! {outgoing_msg, Message, PeerName},
-             prompt(Client, Peers);
+             io:format("Client ! {outgoing_msg, ~p, ~p}", [Message, PeerName]),
+             Client ! {outgoing_msg, Message, PeerName};
            _ -> display_help(),
                 prompt(Client,Peers)
          end

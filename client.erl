@@ -28,8 +28,13 @@ run() ->
 maintain_connection(ConnectedNode) ->
   receive
     ping -> ping();
-    {outgoing_msg, Msg, To} -> send_chat_msg(Msg, ConnectedNode, To);
-    {incoming_msg, Msg, From} -> ui:render_msg(self(), Msg, From);
+    {outgoing_msg, Msg, To} ->
+      io:format("Received {outgoing_msg, ~p, ~p}", [Msg, To]),
+      send_chat_msg(Msg, ConnectedNode, To),
+      ui:prompt(self, get_available_clients(ConnectedNode));
+    {incoming_msg, Msg, From} ->
+      io:format("Received {incoming_msg, ~p, ~p}", [Msg, From]),
+      ui:render_msg(self(), Msg, From);
     quit -> quit(ConnectedNode);
     list_users ->
       ui:render_peers(self(), get_available_clients(ConnectedNode))
@@ -44,17 +49,16 @@ connect_client(Username, Node) ->
   io:format("Syncing global state...~n"),
   global:sync(),
   io:format("Global after sync: ~p~n", [global:registered_names()]),
-  io:format("Calling global:register_name(~p, ~p)~n", [Username, self()]),
-  global:register_name(node(), self()),
+
   io:format("Sending {connect_client} Msg...~n"),
-  global:send(Node, {connect_client, node()}),
+  global:send(Node, {connect_client, Username, self()}),
   io:format("Done.~n").
 
 ping() ->
   io:format("PING~n").
 
 send_chat_msg(Msg, ConnectedNode, PeerName) ->
-  io:format("~p: sending chat msg ~p to ~p~n", [self(), Msg, PeerName]),
+  io:format("~p: sending {chat_msg, ~p, ~p, ~p}~n", [self(), node(), PeerName, Msg]),
   try
     global:send(ConnectedNode, {chat_msg, node(), PeerName, Msg})
   catch

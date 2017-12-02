@@ -15,31 +15,31 @@ init() ->
   end.
 
 
-% ConnectedClients: [<Client>]
-% AvailableClients: [{<Client>, <closest Node>, <Distance to closest Node>}]
+% ConnectedClients: [{Pid, Username}]
+% AvailableClients: [{<Username>, <closest Node>, <Distance to closest Node>}]
 % LinkedNodes: [<Node>]
 run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
   global:send(observer, {node_status, self(), ConnectedClients, AvailableClients, LinkedNodes}),
   receive
-    {connect_client, Client} ->
-      case lists:member(Client, ConnectedClients) of
+    {connect_client, Username, Pid} ->
+      case lists:keymember(Pid, 1, ConnectedClients) of
         true ->
           run_node(ConnectedClients, AvailableClients, LinkedNodes);
         false ->
           InformedNodes = [self()|LinkedNodes],
-          global:send(observer, {client_connected, self(), Client}),
-          [ Node ! {new_client_online, self(), Client, 0, InformedNodes} || Node <- LinkedNodes ],
-          run_node([Client|ConnectedClients], AvailableClients, LinkedNodes)
+          global:send(observer, {client_connected, self(), Username, Pid}),
+          [ Node ! {new_client_online, self(), Username, 0, InformedNodes} || Node <- LinkedNodes ],
+          run_node([{Pid, Username}|ConnectedClients], AvailableClients, LinkedNodes)
       end;
 
-    {disconnect_client, Client} ->
-      global:send(observer, {client_disconnected, self(), Client}),
-      [ Node ! {client_disconnected, Client} || Node <- LinkedNodes ],
-      Client ! {disconnect_successful, self()},
-      run_node(lists:delete(Client, ConnectedClients), AvailableClients, LinkedNodes);
+    {disconnect_client, Pid} ->
+      global:send(observer, {client_disconnected, self(), Pid}),
+      [ Node ! {client_disconnected, Pid} || Node <- LinkedNodes ],
+      Pid ! {disconnect_successful, self()},
+      run_node(lists:keydelete(Pid, 1, ConnectedClients), AvailableClients, LinkedNodes);
 
-    {request_available_clients, Client} ->
-      Client ! {available_clients, AvailableClients},
+    {request_available_clients, Pid} ->
+      Pid ! {available_clients, AvailableClients},
       run_node(ConnectedClients, AvailableClients, LinkedNodes);
 
     % Perform a modified version of Chandy-Misra
@@ -47,89 +47,53 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
     %   Since the InformedNodes were informed by someone that also informed us,
     %   it is not possible that we would have a shorter path to any of them.
     %   Therefore we don't have to inform these Nodes => less messages.
-    {new_client_online, ClientNode, Client, ClientNodeDistance, InformedNodes} ->
-      io:format("~p: received {new_client_online, ~p, ~p, ~p, ~p}~n", [self(), ClientNode, Client, ClientNodeDistance, InformedNodes]),
+    {new_client_online, ClientNode, Username, ClientNodeDistance, InformedNodes} ->
+      io:format("~p: received {new_client_online, ~p, ~p, ~p, ~p}~n", [self(), ClientNode, Username, ClientNodeDistance, InformedNodes]),
 
       DistanceToClient = ClientNodeDistance + 1,
 
       NodesToInform = [ Node || Node <- LinkedNodes, Node =/= ClientNode, not(lists:member(Node, InformedNodes)) ],
       NewInformedNodes = lists:append(InformedNodes, NodesToInform),
 
-      case lists:keyfind(Client, 1, AvailableClients) of
-        {Client, _CurrentClientNode, CurrentDistance} ->
+      case lists:keyfind(Username, 1, AvailableClients) of
+        {Username, _CurrentClientNode, CurrentDistance} ->
           % Client already in our list of clients
           case DistanceToClient < CurrentDistance of
             true ->
               % The new Distance is better
-              inform_about_new_client(NodesToInform, Client, DistanceToClient, NewInformedNodes),
-              run_node(ConnectedClients, lists:keyreplace(Client, 1, AvailableClients, {Client, ClientNode, DistanceToClient}), LinkedNodes);
+              inform_about_new_client(NodesToInform, Username, DistanceToClient, NewInformedNodes),
+              run_node(ConnectedClients, lists:keyreplace(Username, 1, AvailableClients, {Username, ClientNode, DistanceToClient}), LinkedNodes);
             false ->
               % The new Distance is worse
               run_node(ConnectedClients, AvailableClients, LinkedNodes)
           end;
         false ->
           % Client not in our list of clients
-          inform_about_new_client(NodesToInform, Client, DistanceToClient, NewInformedNodes),
-          run_node(ConnectedClients, [{Client, ClientNode, DistanceToClient}|AvailableClients], LinkedNodes)
+          inform_about_new_client(NodesToInform, Username, DistanceToClient, NewInformedNodes),
+          run_node(ConnectedClients, [{Username, ClientNode, DistanceToClient}|AvailableClients], LinkedNodes)
       end;
-    % OLD:
-    % {new_client_online, ClientNode, Client, ClientNodeDistance} ->
-    %   io:format("~p: received {new_client_online, ~p, ~p, ~p}~n", [self(), ClientNode, Client, ClientNodeDistance]),
-
-    %   DistanceToClient = ClientNodeDistance + 1,
-
-    %   case lists:keyfind(Client, 1, AvailableClients) of
-    %     {Client, _CurrentClientNode, CurrentDistance} ->
-    %       % Client already in our list of clients
-    %       case DistanceToClient < CurrentDistance of
-    %         true ->
-    %           % The new Distance is better
-    %           % 1. Inform LinkedNodes about new route to this Client
-    %           % 2. Modify own routing information for this Client
-    %           [ Node ! {new_client_online, self(), Client, ClientNodeDistance} || Node <- LinkedNodes, Node =/= ClientNode ],
-    %           run_node(ConnectedClients, lists:keyreplace(Client, 1, AvailableClients, {Client, ClientNode, DistanceToClient}), LinkedNodes);
-    %         false ->
-    %           % The new Distance is worse
-    %           % 1. Keep running with current information
-    %           run_node(ConnectedClients, AvailableClients, LinkedNodes)
-    %       end;
-    %     false ->
-    %       % Client not in our list of clients
-    %       % 1. Inform LinkedNodes about new route to this Client
-    %       % 2. Add Client to our routing information
-    %       [ Node ! {new_client_online, self(), Client, DistanceToClient } || Node <- LinkedNodes, Node =/= ClientNode ],
-    %       run_node(ConnectedClients, [{Client, ClientNode, DistanceToClient}|AvailableClients], LinkedNodes)
-    %   end;
 
     {client_offline, _} ->
       run_node(ConnectedClients, AvailableClients, LinkedNodes);
 
     {chat_msg, From, To, Msg} ->
       io:format("~p: received {chat_msg, ~p, ~p, ~p}~n", [self(), From, To, Msg]),
-      global:send(observer, {route_msg, self(), From, To}),
-      route_chat_msg(From, To, Msg, ConnectedClients, LinkedNodes),
-      io:format("~p: routed message, now restarting receive loop~n", [self()]),
+      route_chat_msg(From, To, Msg, ConnectedClients, AvailableClients),
+
       run_node(ConnectedClients, AvailableClients, LinkedNodes)
   end.
 
-route_chat_msg(From, To, Msg, ConnectedClients, LinkedNodes) ->
-  case lists:member(To, ConnectedClients) of
-    % Send message to connected Client
-    % FIXME: This sends the MSG to all clients??
-    true -> [ global:send(Client, {incoming_msg, Msg, From}) || Client <- ConnectedClients ];
-
-    % route message to next Node that has a connection to Client
+% ConnectedClients: [{Pid, Username}]
+% AvailableClients: [{<Username>, <closest Node>, <Distance to closest Node>}]
+% LinkedNodes: [<Node>]
+route_chat_msg(From, To, Msg, ConnectedClients, AvailableClients) ->
+  io:format("TO: ~p~n", [To]),
+  case lists:keyfind(To, 2, ConnectedClients) of
+    {Pid, _} -> Pid ! {incoming_msg, Msg, From};
     false ->
-      NodesWithClient = lists:filtermap(fun({N, ClientList}) ->
-                                            case lists:keyfind(To, 1, ClientList) of
-                                              {_, Dist} -> {true, {N, Dist}};
-                                              _ -> false
-                                            end
-                                        end,
-                                        LinkedNodes),
-      io:format("NodesWithClient: ~p~n", [NodesWithClient]),
-      {_MinDist, ClosestNode} = lists:min([ {Dist, N} || {N, Dist} <- NodesWithClient ]),
-      io:format("~p: forwarding chat msg to ~p~n", [self(), ClosestNode]),
+      io:format("~p: looking for ~p in list of available clients to find route: ~p~n", [self(), To, AvailableClients]),
+      {_, ClosestNode, _} = lists:keyfind(To, 1, AvailableClients),
+      global:send(observer, {route_msg, self(), From, To, ClosestNode}),
       ClosestNode ! {chat_msg, From, To, Msg}
   end.
 

@@ -23,7 +23,7 @@ run() ->
 observe_network() ->
   receive
     {node_status, Node, ConnectedClients, AvailableClients, LinkedNodes} -> io:format("~p:~n  ConnectedClients: ~p~n  AvailableClients: ~p~n  Links: ~p~n", [Node, ConnectedClients, AvailableClients, LinkedNodes]);
-    {client_connected, Node, Client} -> io:format("~p: client ~p connected~n", [Node, Client]);
+    {client_connected, Node, Username, Pid} -> io:format("~p: client ~p (~p) connected~n", [Node, Username, Pid]);
     {client_disconnected, Node, Client} -> io:format("~p: client ~p disconnected~n", [Node, Client]);
     {route_msg, Recipient, From, To} -> io:format("~p: routing message from ~p to ~p~n", [Recipient, From, To])
   end,
