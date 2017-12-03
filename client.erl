@@ -4,19 +4,13 @@
 
 run() ->
   {ok, [Cookie|Enodes]} = file:consult('./enodes.conf'),
-  io:format("node: ~p, self: ~p, node(self()): ~p~n", [node(), self(), node(self())]),
 
   Username = get_username(),
 
-  io:format("init net_kernel~n", []),
   net_kernel:start([Username, longnames]),
 
-  io:format("node: ~p, self: ~p, node(self()): ~p~n", [node(), self(), node(self())]),
-
   ACookie = list_to_atom(integer_to_list(Cookie)),
-  io:format("set cookie to ~p~n", [ACookie]),
   erlang:set_cookie(node(), ACookie),
-  io:format("current cookie: ~p~n", [erlang:get_cookie()]),
 
   ConnectedNode = choose_node(Enodes),
   connect_client(Username, ConnectedNode),
@@ -29,11 +23,8 @@ maintain_connection(ConnectedNode) ->
   receive
     ping -> ping();
     {outgoing_msg, Msg, To} ->
-      io:format("Received {outgoing_msg, ~p, ~p}", [Msg, To]),
-      send_chat_msg(Msg, ConnectedNode, To),
-      ui:prompt(self(), get_available_clients(ConnectedNode));
+      send_chat_msg(Msg, ConnectedNode, To);
     {incoming_msg, Msg, From} ->
-      io:format("Received {incoming_msg, ~p, ~p}", [Msg, From]),
       ui:render_msg(self(), Msg, From);
     quit -> quit(ConnectedNode);
     list_users ->
@@ -58,7 +49,6 @@ ping() ->
   io:format("PING~n").
 
 send_chat_msg(Msg, ConnectedNode, PeerName) ->
-  io:format("~p: sending {chat_msg, ~p, ~p, ~p}~n", [self(), node(), PeerName, Msg]),
   try
     global:send(ConnectedNode, {chat_msg, node(), PeerName, Msg})
   catch

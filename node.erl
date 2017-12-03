@@ -39,7 +39,7 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
       run_node(lists:keydelete(Pid, 1, ConnectedClients), AvailableClients, LinkedNodes);
 
     {request_available_clients, Pid} ->
-      Pid ! {available_clients, AvailableClients},
+      Pid ! {available_clients, [ Username || {Username, _, _} <- AvailableClients ] },
       run_node(ConnectedClients, AvailableClients, LinkedNodes);
 
     % Perform a modified version of Chandy-Misra
@@ -48,8 +48,6 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
     %   it is not possible that we would have a shorter path to any of them.
     %   Therefore we don't have to inform these Nodes => less messages.
     {new_client_online, ClientNode, Username, ClientNodeDistance, InformedNodes} ->
-      io:format("~p: received {new_client_online, ~p, ~p, ~p, ~p}~n", [self(), ClientNode, Username, ClientNodeDistance, InformedNodes]),
-
       DistanceToClient = ClientNodeDistance + 1,
 
       NodesToInform = [ Node || Node <- LinkedNodes, Node =/= ClientNode, not(lists:member(Node, InformedNodes)) ],
@@ -77,7 +75,6 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
       run_node(ConnectedClients, AvailableClients, LinkedNodes);
 
     {chat_msg, From, To, Msg} ->
-      io:format("~p: received {chat_msg, ~p, ~p, ~p}~n", [self(), From, To, Msg]),
       route_chat_msg(From, To, Msg, ConnectedClients, AvailableClients),
 
       run_node(ConnectedClients, AvailableClients, LinkedNodes)
@@ -87,11 +84,9 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
 % AvailableClients: [{<Username>, <closest Node>, <Distance to closest Node>}]
 % LinkedNodes: [<Node>]
 route_chat_msg(From, To, Msg, ConnectedClients, AvailableClients) ->
-  io:format("TO: ~p~n", [To]),
   case lists:keyfind(To, 2, ConnectedClients) of
     {Pid, _} -> Pid ! {incoming_msg, Msg, From};
     false ->
-      io:format("~p: looking for ~p in list of available clients to find route: ~p~n", [self(), To, AvailableClients]),
       {_, ClosestNode, _} = lists:keyfind(To, 1, AvailableClients),
       global:send(observer, {route_msg, self(), From, To, ClosestNode}),
       ClosestNode ! {chat_msg, From, To, Msg}

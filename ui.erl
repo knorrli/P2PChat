@@ -30,7 +30,6 @@ render_peers(Client, Peers) ->
 
 % prompt the user for an action and relay the chosen action to the client
 prompt(Client, Peers) ->
-  io:format("Prompt started!"),
   Input = string:strip(io:get_line(?PROMPT), right, $\n),
   Cmd = string:sub_word(Input, 1),
 
