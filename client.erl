@@ -29,7 +29,7 @@ maintain_connection(Username, ConnectedNode) ->
     {incoming_msg, Msg, From} ->
       ui:render_msg(Msg, From),
       ui:prompt(self(), get_available_clients(ConnectedNode));
-    quit -> quit(ConnectedNode);
+    quit -> quit(Username, ConnectedNode);
     list_users ->
       ui:render_peers(self(), get_available_clients(ConnectedNode))
   end,
@@ -61,8 +61,8 @@ send_chat_msg(Msg, ConnectedNode, Username, Peername) ->
       io:format("ERROR: The chat message could not be sent.")
   end.
 
-quit(ConnectedNode) ->
-  global:send(ConnectedNode, {disconnect_client, self()}),
+quit(Username, ConnectedNode) ->
+  global:send(ConnectedNode, {disconnect_client, Username, self()}),
   receive
     {disconnect_successful, Node} -> io:format("Disconnected from ~p~n", [Node])
   end,

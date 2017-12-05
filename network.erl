@@ -13,11 +13,10 @@ run() ->
 
   {{Year, Month, Day}, {Hour, Minute, _}} = erlang:localtime(),
   Str = io_lib:format("~p-~p-~p ~p:~p | creating random network~n", [Year, Month, Day, Hour, Minute]),
+  io:format(Str),
   file:write_file(?OUTFILE, Str, [write]),
-  log(Str),
   {ok, [_|Enodes]} = file:consult('./enodes.conf'),
   Nodes = deploy_nodes(Enodes),
-  log("Nodes: ~p~n", [Nodes]),
 
   initialize_random_network(Nodes),
 
@@ -25,10 +24,12 @@ run() ->
 
 observe_network() ->
   receive
+    {node_online, Node} -> log("~p: online~n", [Node]);
+    {node_offline, Node} -> log("~p: offline~n", [Node]);
     {node_status, Node, ConnectedClients, AvailableClients, LinkedNodes} -> log("~p:~n  ConnectedClients: ~p~n  AvailableClients: ~p~n  Links: ~p~n", [Node, ConnectedClients, AvailableClients, LinkedNodes]);
     {link_added, Node, LinkedNode } -> log("~p: linked to ~p~n", [Node, LinkedNode]);
     {client_connected, Node, Username, Pid} -> log("~p: client ~p (~p) connected~n", [Node, Username, Pid]);
-    {client_disconnected, Node, Client} -> log("~p: client ~p disconnected~n", [Node, Client]);
+    {client_disconnected, Node, Username, Client} -> log("~p: client ~p (~p) disconnected~n", [Node, Username, Client]);
     {route_msg, Recipient, From, To, Via} -> log("~p: routing message from ~p to ~p via ~p~n", [Recipient, From, To, Via]);
     {deliver_msg, Recipient, From, To, Msg} -> log("~p: delivering message from ~p to ~p: ~p~n", [Recipient, From, To, Msg])
   end,

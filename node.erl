@@ -9,6 +9,8 @@ init() ->
   %
   global:sync(),
 
+  global:send(observer, {node_online, self()}),
+
   receive
     { initialize_links, LinkedNodes } ->
       lists:foreach(fun(N) ->
@@ -45,8 +47,8 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
       end;
 
 
-    {disconnect_client, Pid} ->
-      global:send(observer, {client_disconnected, self(), Pid}),
+    {disconnect_client, Username, Pid} ->
+      global:send(observer, {client_disconnected, self(), Username, Pid}),
       [ Node ! {client_disconnected, Pid} || Node <- LinkedNodes ],
       Pid ! {disconnect_successful, self()},
       run_node(lists:keydelete(Pid, 1, ConnectedClients), AvailableClients, LinkedNodes);
