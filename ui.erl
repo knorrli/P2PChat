@@ -1,6 +1,6 @@
 -module(ui).
 
--export([start/2, render_msg/3, render_peers/2, prompt/2]).
+-export([start/2, render_msg/2, render_peers/2, prompt/2]).
 
 -define(PING, "!p").
 -define(HELP, "!h").
@@ -16,7 +16,7 @@ start(Client, Peers) ->
   prompt(Client, Peers).
 
 % public facing, lets the client write to output
-render_msg(_, Msg, From) ->
+render_msg(Msg, From) ->
   io:format("<~s>: ~s~n", [From, Msg]).
 
 
@@ -42,10 +42,9 @@ prompt(Client, Peers) ->
     _ -> Cmd2 = string:to_integer(Cmd),
          case Cmd2 of
            {N, _} ->
-             PeerName = lists:nth(N, Peers),
-             Message = string:sub_word(Input, 2),
-             Client ! {outgoing_msg, Message, PeerName},
-             prompt(Client, Peers);
+             Peername = lists:nth(N, Peers),
+             Message = string:sub_string(Input, 2),
+             Client ! {outgoing_msg, Message, Peername};
            _ -> display_help(),
                 prompt(Client,Peers)
          end

@@ -11,6 +11,10 @@ init() ->
 
   receive
     { initialize_links, LinkedNodes } ->
+      lists:foreach(fun(N) ->
+                        N ! { link_added, self() },
+                        global:send(observer, {link_added, self(), N})
+                    end, LinkedNodes),
       run_node([], [], LinkedNodes)
   end.
 
@@ -19,8 +23,16 @@ init() ->
 % AvailableClients: [{<Username>, <closest Node>, <Distance to closest Node>}]
 % LinkedNodes: [<Node>]
 run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
-  global:send(observer, {node_status, self(), ConnectedClients, AvailableClients, LinkedNodes}),
+  % global:send(observer, {node_status, self(), ConnectedClients, AvailableClients, LinkedNodes}),
   receive
+    {link_added, Node} ->
+      case not(lists:member(Node, LinkedNodes)) of
+        true ->
+          global:send(observer, {link_added, self(), Node}),
+          run_node(ConnectedClients, AvailableClients, [Node|LinkedNodes]);
+        false -> run_node(ConnectedClients, AvailableClients, LinkedNodes)
+      end;
+
     {connect_client, Username, Pid} ->
       case lists:keymember(Pid, 1, ConnectedClients) of
         true ->
@@ -31,6 +43,7 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
           [ Node ! {new_client_online, self(), Username, 0, InformedNodes} || Node <- LinkedNodes ],
           run_node([{Pid, Username}|ConnectedClients], AvailableClients, LinkedNodes)
       end;
+
 
     {disconnect_client, Pid} ->
       global:send(observer, {client_disconnected, self(), Pid}),
@@ -85,7 +98,9 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
 % LinkedNodes: [<Node>]
 route_chat_msg(From, To, Msg, ConnectedClients, AvailableClients) ->
   case lists:keyfind(To, 2, ConnectedClients) of
-    {Pid, _} -> Pid ! {incoming_msg, Msg, From};
+    {ClientPid, _} ->
+      global:send(observer, {deliver_msg, self(), From, To, Msg}),
+      ClientPid ! {incoming_msg, Msg, From};
     false ->
       {_, ClosestNode, _} = lists:keyfind(To, 1, AvailableClients),
       global:send(observer, {route_msg, self(), From, To, ClosestNode}),

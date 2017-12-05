@@ -17,20 +17,23 @@ run() ->
   % we can only access the global information after connecting
   spawn(ui, start, [self(), get_available_clients(ConnectedNode)]),
 
-  maintain_connection(ConnectedNode).
+  maintain_connection(Username, ConnectedNode).
 
-maintain_connection(ConnectedNode) ->
+maintain_connection(Username, ConnectedNode) ->
   receive
     ping -> ping();
     {outgoing_msg, Msg, To} ->
-      send_chat_msg(Msg, ConnectedNode, To);
+      send_chat_msg(Msg, ConnectedNode, Username, To),
+      ui:prompt(self(), get_available_clients(ConnectedNode));
+
     {incoming_msg, Msg, From} ->
-      ui:render_msg(self(), Msg, From);
+      ui:render_msg(Msg, From),
+      ui:prompt(self(), get_available_clients(ConnectedNode));
     quit -> quit(ConnectedNode);
     list_users ->
       ui:render_peers(self(), get_available_clients(ConnectedNode))
   end,
-  maintain_connection(ConnectedNode).
+  maintain_connection(Username, ConnectedNode).
 
 
 connect_client(Username, Node) ->
@@ -48,9 +51,10 @@ connect_client(Username, Node) ->
 ping() ->
   io:format("PING~n").
 
-send_chat_msg(Msg, ConnectedNode, PeerName) ->
+send_chat_msg(Msg, ConnectedNode, Username, Peername) ->
   try
-    global:send(ConnectedNode, {chat_msg, node(), PeerName, Msg})
+    global:send(observer, {route_msg, self(), Username, Peername}),
+    global:send(ConnectedNode, {chat_msg, Username, Peername, Msg})
   catch
     {badarg, _} ->
       % TODO: Error handling

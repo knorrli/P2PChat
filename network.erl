@@ -12,9 +12,12 @@ run() ->
   global:register_name(observer, self()),
 
   {{Year, Month, Day}, {Hour, Minute, _}} = erlang:localtime(),
-  file:write_file(?OUTFILE, io_lib:format("~p-~p-~p ~p:~p | creating random network~n", [Year, Month, Day, Hour, Minute]), [write]),
+  Str = io_lib:format("~p-~p-~p ~p:~p | creating random network~n", [Year, Month, Day, Hour, Minute]),
+  file:write_file(?OUTFILE, Str, [write]),
+  log(Str),
   {ok, [_|Enodes]} = file:consult('./enodes.conf'),
   Nodes = deploy_nodes(Enodes),
+  log("Nodes: ~p~n", [Nodes]),
 
   initialize_random_network(Nodes),
 
@@ -22,10 +25,12 @@ run() ->
 
 observe_network() ->
   receive
-    {node_status, Node, ConnectedClients, AvailableClients, LinkedNodes} -> io:format("~p:~n  ConnectedClients: ~p~n  AvailableClients: ~p~n  Links: ~p~n", [Node, ConnectedClients, AvailableClients, LinkedNodes]);
-    {client_connected, Node, Username, Pid} -> io:format("~p: client ~p (~p) connected~n", [Node, Username, Pid]);
-    {client_disconnected, Node, Client} -> io:format("~p: client ~p disconnected~n", [Node, Client]);
-    {route_msg, Recipient, From, To} -> io:format("~p: routing message from ~p to ~p~n", [Recipient, From, To])
+    {node_status, Node, ConnectedClients, AvailableClients, LinkedNodes} -> log("~p:~n  ConnectedClients: ~p~n  AvailableClients: ~p~n  Links: ~p~n", [Node, ConnectedClients, AvailableClients, LinkedNodes]);
+    {link_added, Node, LinkedNode } -> log("~p: linked to ~p~n", [Node, LinkedNode]);
+    {client_connected, Node, Username, Pid} -> log("~p: client ~p (~p) connected~n", [Node, Username, Pid]);
+    {client_disconnected, Node, Client} -> log("~p: client ~p disconnected~n", [Node, Client]);
+    {route_msg, Recipient, From, To, Via} -> log("~p: routing message from ~p to ~p via ~p~n", [Recipient, From, To, Via]);
+    {deliver_msg, Recipient, From, To, Msg} -> log("~p: delivering message from ~p to ~p: ~p~n", [Recipient, From, To, Msg])
   end,
   observe_network().
 
@@ -43,12 +48,22 @@ initialize_random_network(Enodes) ->
 % i.e. A -> B does not imply that B -> A
 initialize_random_network_links(Node, Enodes) ->
    OtherNodes = lists:delete(Node, Enodes),
-   % removes 33% of the links
 
    % TODO: Because the erlang version on TEDA has not yet reached V18, we are
    % stuck with the old and deprecated random module that needs to be seeded
    % before usage. Once TEDA is updated, we could simply use rand:uniform/1
    random:seed(erlang:now()),
-   RandomNodes = lists:filter(fun(_) -> random:uniform(3) /= 1 end, OtherNodes),
-  Node ! { initialize_links, RandomNodes }.
 
+   % removes 50% of the links
+   RandomNodes = lists:filter(fun(_) -> random:uniform(2) /= 1 end, OtherNodes),
+   % Always create at least one link
+   case RandomNodes of
+     [] -> Node ! { initialize_links, [lists:nth(random:uniform(length(OtherNodes)), OtherNodes)] };
+     _ -> Node ! { initialize_links, RandomNodes }
+   end.
+
+
+log(Str) -> log(Str, []).
+log(Str, Interpolations) ->
+  file:write_file(?OUTFILE, io_lib:format(Str, Interpolations), [append]),
+  io:format(Str, Interpolations).
