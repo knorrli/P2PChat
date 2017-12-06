@@ -28,6 +28,7 @@ maintain_connection(Username, ConnectedNode) ->
       % ui:prompt(self(), get_available_clients(ConnectedNode));
 
     {incoming_msg, Msg, From} ->
+      global:send(observer, {route_msg, self(), From, Username, ConnectedNode, Msg}),
       ui:render_msg(Msg, From);
       % ui:prompt(self(), get_available_clients(ConnectedNode));
     quit -> quit(Username, ConnectedNode);
@@ -58,7 +59,7 @@ ping() ->
 send_chat_msg(Msg, ConnectedNode, Username, Peername) ->
   try
     global:send(observer, {route_msg, self(), Username, Peername, ConnectedNode, Msg}),
-    ConnectedNode ! {chat_msg, Username, Peername, Msg}
+    ConnectedNode ! {route_msg, Username, Peername, Msg}
   catch
     {badarg, _} ->
       % TODO: Error handling

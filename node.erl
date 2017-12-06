@@ -89,7 +89,7 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
     {client_offline, _} ->
       run_node(ConnectedClients, AvailableClients, LinkedNodes);
 
-    {chat_msg, From, To, Msg} ->
+    {route_msg, From, To, Msg} ->
       route_chat_msg(From, To, Msg, ConnectedClients, AvailableClients),
 
       run_node(ConnectedClients, AvailableClients, LinkedNodes)
@@ -101,12 +101,12 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
 route_chat_msg(From, To, Msg, ConnectedClients, AvailableClients) ->
   case lists:keyfind(To, 2, ConnectedClients) of
     {ClientPid, _} ->
-      global:send(observer, {deliver_msg, self(), From, To, Msg}),
+      global:send(observer, {route_msg, self(), From, To, ClientPid, Msg}),
       ClientPid ! {incoming_msg, Msg, From};
     false ->
       {_, ClosestNode, _} = lists:keyfind(To, 1, AvailableClients),
       global:send(observer, {route_msg, self(), From, To, ClosestNode, Msg}),
-      ClosestNode ! {chat_msg, From, To, Msg}
+      ClosestNode ! {route_msg, From, To, Msg}
   end.
 
 inform_about_new_client(NodesToInform, Client, DistanceToClient, InformedNodes) ->
