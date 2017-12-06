@@ -4,11 +4,6 @@
 
 
 init() ->
-  global:register_name(node(), self()),
-  % this should not be necessary but observer isn't available otherwise??
-  %
-  global:sync(),
-
   global:send(observer, {node_online, self()}),
 
   receive
@@ -79,7 +74,9 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
           % Client not in our list of clients
           inform_about_new_client(NodesToInform, Username, DistanceToClient, NewInformedNodes),
           run_node(ConnectedClients, [{Username, ClientNode, DistanceToClient}|AvailableClients], LinkedNodes)
-      end;
+      end,
+      % let other clients know that a new client is available
+      [ Client ! refresh || Client <- ConnectedClients ];
 
     % TODO BUG: This does not work at all!
     {disconnect_client, Username, ClientPid, InformedNodes} ->
