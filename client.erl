@@ -53,7 +53,7 @@ ping() ->
 
 send_chat_msg(Msg, ConnectedNode, Username, Peername) ->
   try
-    global:send(observer, {route_msg, self(), Username, Peername}),
+    global:send(observer, {route_msg, self(), Username, Peername, ConnectedNode, Msg}),
     global:send(ConnectedNode, {chat_msg, Username, Peername, Msg})
   catch
     {badarg, _} ->

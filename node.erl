@@ -105,7 +105,7 @@ route_chat_msg(From, To, Msg, ConnectedClients, AvailableClients) ->
       ClientPid ! {incoming_msg, Msg, From};
     false ->
       {_, ClosestNode, _} = lists:keyfind(To, 1, AvailableClients),
-      global:send(observer, {route_msg, self(), From, To, ClosestNode}),
+      global:send(observer, {route_msg, self(), From, To, ClosestNode, Msg}),
       ClosestNode ! {chat_msg, From, To, Msg}
   end.
 

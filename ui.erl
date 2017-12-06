@@ -43,7 +43,7 @@ prompt(Client, Peers) ->
          case Cmd2 of
            {N, _} ->
              Peername = lists:nth(N, Peers),
-             Message = string:sub_string(Input, 2),
+             Message = string:strip(string:sub_string(Input, 2)),
              Client ! {outgoing_msg, Message, Peername};
            _ -> display_help(),
                 prompt(Client,Peers)

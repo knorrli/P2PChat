@@ -30,7 +30,7 @@ observe_network() ->
     {link_added, Node, LinkedNode } -> log("~p: linked to ~p~n", [Node, LinkedNode]);
     {client_connected, Node, Username, Pid} -> log("~p: client ~p (~p) connected~n", [Node, Username, Pid]);
     {client_disconnected, Node, Username, Client} -> log("~p: client ~p (~p) disconnected~n", [Node, Username, Client]);
-    {route_msg, Recipient, From, To, Via} -> log("~p: routing message from ~p to ~p via ~p~n", [Recipient, From, To, Via]);
+    {route_msg, Recipient, From, To, Via, Msg} -> log("~p: routing message ~p from ~p to ~p via ~p~n", [Recipient, Msg, From, To, Via]);
     {deliver_msg, Recipient, From, To, Msg} -> log("~p: delivering message from ~p to ~p: ~p~n", [Recipient, From, To, Msg])
   end,
   observe_network().
