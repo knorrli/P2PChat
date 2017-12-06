@@ -12,8 +12,9 @@ run() ->
   ACookie = list_to_atom(integer_to_list(Cookie)),
   erlang:set_cookie(node(), ACookie),
 
-  ConnectedNode = choose_node(Enodes),
-  connect_client(Username, ConnectedNode),
+  ChosenEnode = choose_node(Enodes),
+  ConnectedNode = connect_client(Username, ChosenEnode),
+  io:format("connectedNode: ~p~n", [ConnectedNode]),
   % we can only access the global information after connecting
   spawn(ui, start, [self(), get_available_clients(ConnectedNode)]),
 
@@ -23,12 +24,12 @@ maintain_connection(Username, ConnectedNode) ->
   receive
     ping -> ping();
     {outgoing_msg, Msg, To} ->
-      send_chat_msg(Msg, ConnectedNode, Username, To),
-      ui:prompt(self(), get_available_clients(ConnectedNode));
+      send_chat_msg(Msg, ConnectedNode, Username, To);
+      % ui:prompt(self(), get_available_clients(ConnectedNode));
 
     {incoming_msg, Msg, From} ->
-      ui:render_msg(Msg, From),
-      ui:prompt(self(), get_available_clients(ConnectedNode));
+      ui:render_msg(Msg, From);
+      % ui:prompt(self(), get_available_clients(ConnectedNode));
     quit -> quit(Username, ConnectedNode);
     list_users ->
       ui:render_peers(self(), get_available_clients(ConnectedNode))
@@ -36,17 +37,20 @@ maintain_connection(Username, ConnectedNode) ->
   maintain_connection(Username, ConnectedNode).
 
 
-connect_client(Username, Node) ->
-  io:format("Connecting to ~p...~n", [Node]),
-  net_kernel:connect_node(Node),
+connect_client(Username, Enode) ->
+  io:format("Connecting to ~p...~n", [Enode]),
+  net_kernel:connect_node(Enode),
   % sync global state (although this should happen automatically?)
   io:format("Syncing global state...~n"),
   global:sync(),
   io:format("Global after sync: ~p~n", [global:registered_names()]),
-
+  io:format("Lookup Enode PID... "),
+  ConnectedNode = global:whereis_name(Enode),
+  io:format("~p~n", [ConnectedNode]),
   io:format("Sending {connect_client} Msg...~n"),
-  global:send(Node, {connect_client, Username, self()}),
-  io:format("Done.~n").
+  ConnectedNode ! {connect_client, Username, self()},
+  io:format("Done.~n"),
+  ConnectedNode.
 
 ping() ->
   io:format("PING~n").
@@ -54,7 +58,7 @@ ping() ->
 send_chat_msg(Msg, ConnectedNode, Username, Peername) ->
   try
     global:send(observer, {route_msg, self(), Username, Peername, ConnectedNode, Msg}),
-    global:send(ConnectedNode, {chat_msg, Username, Peername, Msg})
+    ConnectedNode ! {chat_msg, Username, Peername, Msg}
   catch
     {badarg, _} ->
       % TODO: Error handling
@@ -62,7 +66,7 @@ send_chat_msg(Msg, ConnectedNode, Username, Peername) ->
   end.
 
 quit(Username, ConnectedNode) ->
-  global:send(ConnectedNode, {disconnect_client, Username, self()}),
+  ConnectedNode ! {disconnect_client, Username, self()},
   receive
     {disconnect_successful, Node} -> io:format("Disconnected from ~p~n", [Node])
   end,
@@ -70,7 +74,8 @@ quit(Username, ConnectedNode) ->
   init:stop().
 
 get_available_clients(ConnectedNode) ->
-  global:send(ConnectedNode, { request_available_clients, self() }),
+  io:format("connectedNode: ~p~n", [ConnectedNode]),
+  ConnectedNode ! { request_available_clients, self() },
   receive
     {available_clients, AvailableClients} -> AvailableClients
   end.

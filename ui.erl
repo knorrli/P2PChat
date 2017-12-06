@@ -21,12 +21,12 @@ render_msg(Msg, From) ->
 
 
 render_peers(Client, Peers) when Peers =:= [] ->
-  io:format("There are no clients available, sorry.~n"),
-  prompt(Client, Peers);
+  io:format("There are no clients available, sorry.~n");
+  % prompt(Client, Peers);
 render_peers(Client, Peers) ->
   PeersWithIndex = lists:zip(lists:seq(1, length(Peers)), Peers),
-  lists:foreach(fun({I, P}) -> io:format("~p: ~p~n", [I, P]) end, PeersWithIndex),
-  prompt(Client, Peers).
+  lists:foreach(fun({I, P}) -> io:format("~p: ~p~n", [I, P]) end, PeersWithIndex).
+  % prompt(Client, Peers).
 
 % prompt the user for an action and relay the chosen action to the client
 prompt(Client, Peers) ->
@@ -37,18 +37,19 @@ prompt(Client, Peers) ->
     ?PING -> Client ! ping;
     ?LIST_USERS -> Client ! list_users;
     ?QUIT -> Client ! quit;
-    ?HELP -> display_help(),
-             prompt(Client, Peers);
+    ?HELP -> display_help();
+             % prompt(Client, Peers);
     _ -> Cmd2 = string:to_integer(Cmd),
          case Cmd2 of
            {N, _} ->
              Peername = lists:nth(N, Peers),
              Message = string:strip(string:sub_string(Input, 2)),
              Client ! {outgoing_msg, Message, Peername};
-           _ -> display_help(),
-                prompt(Client,Peers)
+           _ -> display_help()
+                % prompt(Client,Peers)
          end
-  end.
+  end,
+  prompt(Client, Peers).
 
 display_help() ->
   io:format("HELP~n"),
