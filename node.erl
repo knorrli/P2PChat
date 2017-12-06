@@ -47,11 +47,6 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
       end;
 
 
-    {disconnect_client, Username, Pid} ->
-      global:send(observer, {client_disconnected, self(), Username, Pid}),
-      [ Node ! {client_disconnected, Pid} || Node <- LinkedNodes ],
-      Pid ! {disconnect_successful, self()},
-      run_node(lists:keydelete(Pid, 1, ConnectedClients), AvailableClients, LinkedNodes);
 
     {request_available_clients, Pid} ->
       Pid ! {available_clients, [ Username || {Username, _, _} <- AvailableClients ] },
@@ -86,8 +81,16 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
           run_node(ConnectedClients, [{Username, ClientNode, DistanceToClient}|AvailableClients], LinkedNodes)
       end;
 
-    {client_offline, _} ->
-      run_node(ConnectedClients, AvailableClients, LinkedNodes);
+    % TODO BUG: This does not work at all!
+    {disconnect_client, Username, ClientPid, InformedNodes} ->
+      global:send(observer, {client_disconnected, self(), Username, ClientPid}),
+      NodesToInform = [ Node || Node <- LinkedNodes, not(lists:member(Node, InformedNodes)) ],
+      NewInformedNodes = lists:append(InformedNodes, NodesToInform),
+
+      [ Node ! {disconnect_client, Username, ClientPid, NewInformedNodes} || Node <- NodesToInform ],
+
+      ClientPid ! {disconnect_successful, self()},
+      run_node(lists:keydelete(ClientPid, 1, ConnectedClients), AvailableClients, LinkedNodes);
 
     {route_msg, From, To, Msg} ->
       route_chat_msg(From, To, Msg, ConnectedClients, AvailableClients),
@@ -102,6 +105,7 @@ route_chat_msg(From, To, Msg, ConnectedClients, AvailableClients) ->
   case lists:keyfind(To, 2, ConnectedClients) of
     {ClientPid, _} ->
       global:send(observer, {route_msg, self(), From, To, ClientPid, Msg}),
+      io:format("~p: sending MSG ~p to ~p~n", [self(), Msg, ClientPid]),
       ClientPid ! {incoming_msg, Msg, From};
     false ->
       {_, ClosestNode, _} = lists:keyfind(To, 1, AvailableClients),
