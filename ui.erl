@@ -23,6 +23,6 @@ prompt(Client) ->
       Client ! refresh,
       prompt(Client);
     _ ->
-      Client ! {parse_msg, Input},
+      Client ! {outgoing_msg, Input},
       prompt(Client)
   end.

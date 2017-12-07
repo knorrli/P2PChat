@@ -31,7 +31,7 @@ maintain_connection(ConnectedNode, Username, Status, MsgBuffer) ->
       quit(ConnectedNode, Username);
     refresh ->
       maintain_connection(ConnectedNode, Username, "Refresh UI", MsgBuffer);
-    {parse_msg, Input} ->
+    {outgoing_msg, Input} ->
       case string:to_integer(Input) of
         {N, Msg} ->
           PeerName = lists:nth(N, get_available_clients(ConnectedNode)),
@@ -94,7 +94,7 @@ connect_client(Username, ConnectedNode) ->
   ConnectedNode.
 
 quit(ConnectedNode, Username) ->
-  global:send(ConnectedNode, {disconnect_client, Username, self(), []}),
+  global:send(ConnectedNode, {disconnect_client, Username, self()}),
   receive
     {disconnect_successful, Node} -> io:format("Disconnected from ~p~n", [Node])
   end,

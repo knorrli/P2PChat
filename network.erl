@@ -28,6 +28,8 @@ observe_network() ->
     {node_offline, Node} -> log("~p: offline~n", [Node]);
     {node_status, Node, ConnectedClients, AvailableClients, LinkedNodes} -> log("~p:~n  ConnectedClients: ~p~n  AvailableClients: ~p~n  Links: ~p~n", [Node, ConnectedClients, AvailableClients, LinkedNodes]);
     {link_added, Node, LinkedNode } -> log("~p: linked to ~p~n", [Node, LinkedNode]);
+    {client_available, Node, Username, ClosestNode, Distance} -> log("~p: client ~p available via ~p with distance ~p~n", [Node, Username, ClosestNode, Distance]);
+    {client_unavailable, Node, Username} -> log("~p: client ~p unavailable~n", [Node, Username]);
     {client_connected, Node, Username, Pid} -> log("~p: client ~p (~p) connected~n", [Node, Username, Pid]);
     {client_disconnected, Node, Username, Client} -> log("~p: client ~p (~p) disconnected~n", [Node, Username, Client]);
     {route_msg, Recipient, From, To, Via, Msg} -> log("~p: routing message ~p from ~p to ~p via ~p~n", [Recipient, Msg, From, To, Via])
