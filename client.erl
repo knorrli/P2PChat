@@ -63,8 +63,9 @@ render_ui(ConnectedNode, Username, Status, MessageBuffer) ->
   io:format("Chat:~n~s~n", [messages(MessageBuffer)]),
   io:format("~s~n", [Separator]).
 
-add_to_msg_buffer(MsgTuple, Buffer) ->
-  NewBuffer = [MsgTuple|Buffer],
+add_to_msg_buffer({Username, Msg}, Buffer) ->
+  {_, {H, M, _}} = erlang:localtime(),
+  NewBuffer = [{{H, M}, Username, Msg}|Buffer],
   case length(NewBuffer) > ?MSG_BUFFER_SIZE of
     true -> lists:droplast(NewBuffer);
     false -> NewBuffer
@@ -139,8 +140,8 @@ messages(MessageBuffer) ->
     _ ->
       lists:reverse(
         lists:map(
-          fun ({Name, Msg}) ->
-              io_lib:format("<~p>: ~p~n", [Name, Msg])
+          fun ({{H, M}, Name, Msg}) ->
+              io_lib:format("~2..0w:~2..0w | <~p>: ~p~n", [H, M, Name, Msg])
           end,
           MessageBuffer)
        )

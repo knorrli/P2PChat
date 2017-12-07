@@ -88,8 +88,8 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
       [ Node ! {disconnect_client, Username, ClientPid, NewInformedNodes} || Node <- NodesToInform ],
 
       case lists:keyfind(ClientPid, 1, ConnectedClients) of
-        true ->
-          ClientPid ! {disconnect_successful, self()},
+        {Pid, Username} ->
+          Pid ! {disconnect_successful, self()},
           run_node(lists:keydelete(ClientPid, 1, ConnectedClients), AvailableClients, LinkedNodes);
         false ->
           [ Pid ! refresh || {Pid, _} <- ConnectedClients ],

@@ -8,13 +8,21 @@
 
 % prompt the user for an action and relay the chosen action to the client
 prompt(Client) ->
-  Input = string:strip(io:get_line(?PROMPT), right, $\n),
+  RawInput = io:get_line(?PROMPT),
+  Input = string:trim(RawInput),
   Cmd = string:sub_word(Input, 1),
 
   case Cmd of
-    ?QUIT -> Client ! quit;
-    ?REFRESH -> Client ! refresh;
-    "" -> Client ! refresh;
-    _ -> Client ! {parse_msg, Input}
-  end,
-  prompt(Client).
+    ?QUIT ->
+      Client ! quit,
+      io:format("Goodbye!~n");
+    ?REFRESH ->
+      Client ! refresh,
+      prompt(Client);
+    "" ->
+      Client ! refresh,
+      prompt(Client);
+    _ ->
+      Client ! {parse_msg, Input},
+      prompt(Client)
+  end.
