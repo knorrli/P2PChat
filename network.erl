@@ -63,7 +63,6 @@ initialize_random_network_links(Node, Enodes) ->
    end.
 
 
-log(Str) -> log(Str, []).
 log(Str, Interpolations) ->
   file:write_file(?OUTFILE, io_lib:format(Str, Interpolations), [append]),
   io:format(Str, Interpolations).

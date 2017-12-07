@@ -4,6 +4,8 @@
 
 
 init() ->
+  global:register_name(node(), self()),
+  global:sync(),
   global:send(observer, {node_online, self()}),
 
   receive
@@ -20,7 +22,6 @@ init() ->
 % AvailableClients: [{<Username>, <closest Node>, <Distance to closest Node>}]
 % LinkedNodes: [<Node>]
 run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
-  % global:send(observer, {node_status, self(), ConnectedClients, AvailableClients, LinkedNodes}),
   receive
     {link_added, Node} ->
       case not(lists:member(Node, LinkedNodes)) of
@@ -58,6 +59,9 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
       NodesToInform = [ Node || Node <- LinkedNodes, Node =/= ClientNode, not(lists:member(Node, InformedNodes)) ],
       NewInformedNodes = lists:append(InformedNodes, NodesToInform),
 
+      % inform all connected clients about new available client
+      [ ClientPid ! refresh || {ClientPid, _} <- ConnectedClients ],
+
       case lists:keyfind(Username, 1, AvailableClients) of
         {Username, _CurrentClientNode, CurrentDistance} ->
           % Client already in our list of clients
@@ -74,11 +78,8 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
           % Client not in our list of clients
           inform_about_new_client(NodesToInform, Username, DistanceToClient, NewInformedNodes),
           run_node(ConnectedClients, [{Username, ClientNode, DistanceToClient}|AvailableClients], LinkedNodes)
-      end,
-      % let other clients know that a new client is available
-      [ Client ! refresh || Client <- ConnectedClients ];
+      end;
 
-    % TODO BUG: This does not work at all!
     {disconnect_client, Username, ClientPid, InformedNodes} ->
       global:send(observer, {client_disconnected, self(), Username, ClientPid}),
       NodesToInform = [ Node || Node <- LinkedNodes, not(lists:member(Node, InformedNodes)) ],
@@ -86,8 +87,14 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
 
       [ Node ! {disconnect_client, Username, ClientPid, NewInformedNodes} || Node <- NodesToInform ],
 
-      ClientPid ! {disconnect_successful, self()},
-      run_node(lists:keydelete(ClientPid, 1, ConnectedClients), AvailableClients, LinkedNodes);
+      case lists:keyfind(ClientPid, 1, ConnectedClients) of
+        true ->
+          ClientPid ! {disconnect_successful, self()},
+          run_node(lists:keydelete(ClientPid, 1, ConnectedClients), AvailableClients, LinkedNodes);
+        false ->
+          [ Pid ! refresh || {Pid, _} <- ConnectedClients ],
+          run_node(ConnectedClients, lists:keydelete(Username, 1, AvailableClients), LinkedNodes)
+      end;
 
     {route_msg, From, To, Msg} ->
       route_chat_msg(From, To, Msg, ConnectedClients, AvailableClients),
