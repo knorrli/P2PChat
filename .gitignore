@@ -16,3 +16,4 @@ rel/example_project
 
 .DS_Store
 deploy.sh
+out_network.hrl

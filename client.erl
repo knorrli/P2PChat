@@ -2,69 +2,99 @@
 -export([run/0]).
 -define(OUTFILE, "out_client.hrl").
 
+-define(MSG_BUFFER_SIZE, 20).
+
+% Commands
+-define(REFRESH, "!r").
+-define(NUMBER, "N").
+-define(QUIT, "!q").
+
 run() ->
-  {ok, [Cookie|Enodes]} = file:consult('./enodes.conf'),
-  io:format("node: ~p, self: ~p, node(self()): ~p~n", [node(), self(), node(self())]),
+  {ok, [Cookie|Nodes]} = file:consult('./enodes.conf'),
 
   Username = get_username(),
 
-  io:format("init net_kernel~n", []),
   net_kernel:start([Username, longnames]),
 
-  io:format("node: ~p, self: ~p, node(self()): ~p~n", [node(), self(), node(self())]),
-
   ACookie = list_to_atom(integer_to_list(Cookie)),
-  io:format("set cookie to ~p~n", [ACookie]),
   erlang:set_cookie(node(), ACookie),
-  io:format("current cookie: ~p~n", [erlang:get_cookie()]),
 
-  ConnectedNode = choose_node(Enodes),
-  connect_client(Username, ConnectedNode),
-  % we can only access the global information after connecting
-  spawn(ui, start, [self(), get_available_clients(ConnectedNode)]),
+  ChosenNode = choose_node(Nodes),
+  ConnectedNode = connect_client(Username, ChosenNode),
+  spawn_link(ui, prompt, [self()]),
+  maintain_connection(ConnectedNode, Username, "Connected to Network", []).
 
-  maintain_connection(ConnectedNode).
-
-maintain_connection(ConnectedNode) ->
+maintain_connection(ConnectedNode, Username, Status, MsgBuffer) ->
+  render_ui(ConnectedNode, Username, Status, MsgBuffer),
   receive
-    ping -> ping();
-    {outgoing_msg, Msg, To} -> send_chat_msg(Msg, ConnectedNode, To);
-    {incoming_msg, Msg, From} -> ui:render_msg(self(), Msg, From);
-    quit -> quit(ConnectedNode);
-    list_users ->
-      ui:render_peers(self(), get_available_clients(ConnectedNode))
-  end,
-  maintain_connection(ConnectedNode).
+    quit ->
+      quit(ConnectedNode, Username);
+    refresh ->
+      maintain_connection(ConnectedNode, Username, "Refresh UI", MsgBuffer);
+    {parse_msg, Input} ->
+      case string:to_integer(Input) of
+        {N, Msg} ->
+          PeerName = lists:nth(N, get_available_clients(ConnectedNode)),
+          Message = string:strip(Msg),
+          send_chat_msg(ConnectedNode, Message, Username, PeerName),
+          maintain_connection(ConnectedNode, Username, "Message sent!", add_to_msg_buffer({Username, Message}, MsgBuffer));
+        _ ->
+          NewStatus = io_lib:format("ERROR: can not parse input: ~s", [Input]),
+          maintain_connection(ConnectedNode, Username, NewStatus, MsgBuffer)
+      end;
+    {incoming_msg, Msg, From} ->
+      global:send(observer, {route_msg, self(), From, Username, ConnectedNode, Msg}),
+      maintain_connection(ConnectedNode, Username, "Message received!", add_to_msg_buffer({From, Msg}, MsgBuffer))
+  end.
 
 
-connect_client(Username, Node) ->
-  io:format("Connecting to ~p...~n", [Node]),
-  net_kernel:connect_node(Node),
-  % sync global state (although this should happen automatically?)
-  io:format("Syncing global state...~n"),
-  global:sync(),
-  io:format("Global after sync: ~p~n", [global:registered_names()]),
-  io:format("Calling global:register_name(~p, ~p)~n", [Username, self()]),
-  global:register_name(node(), self()),
-  io:format("Sending {connect_client} Msg...~n"),
-  global:send(Node, {connect_client, node()}),
-  io:format("Done.~n").
+render_ui(ConnectedNode, Username, Status, MessageBuffer) ->
+  io:format(os:cmd(clear)),
 
-ping() ->
-  io:format("PING~n").
+  Separator = io_lib:format("---------------------------------------------------------------------------------------------~n",[]),
+  Header = io_lib:format("P2PChat - connected as ~s | ~p~n", [Username, Status]),
+  io:format(Separator),
+  io:format(Header),
+  io:format(Separator),
+  io:format("Help:~n~s~n", [help()]),
+  io:format(Separator),
+  io:format("Peers:~n~s~n", [peers(ConnectedNode)]),
+  io:format(Separator),
+  io:format("Chat:~n~s~n", [messages(MessageBuffer)]),
+  io:format("~s~n", [Separator]).
 
-send_chat_msg(Msg, ConnectedNode, PeerName) ->
-  io:format("~p: sending chat msg ~p to ~p~n", [self(), Msg, PeerName]),
+add_to_msg_buffer({Username, Msg}, Buffer) ->
+  {_, {H, M, _}} = erlang:localtime(),
+  NewBuffer = [{{H, M}, Username, Msg}|Buffer],
+  case length(NewBuffer) > ?MSG_BUFFER_SIZE of
+    true -> lists:droplast(NewBuffer);
+    false -> NewBuffer
+  end.
+
+send_chat_msg(ConnectedNode, Msg, Username, Peername) ->
   try
-    global:send(ConnectedNode, {chat_msg, node(), PeerName, Msg})
+    global:send(observer, {route_msg, self(), Username, Peername, ConnectedNode, Msg}),
+    global:send(ConnectedNode, {route_msg, Username, Peername, Msg})
   catch
     {badarg, _} ->
       % TODO: Error handling
       io:format("ERROR: The chat message could not be sent.")
   end.
 
-quit(ConnectedNode) ->
-  global:send(ConnectedNode, {disconnect_client, self()}),
+connect_client(Username, ConnectedNode) ->
+  io:format("Connecting to ~p...~n", [ConnectedNode]),
+  net_kernel:connect_node(ConnectedNode),
+  % sync global state (although this should happen automatically?)
+  io:format("Syncing global state...~n"),
+  global:sync(),
+  io:format("Global after sync: ~p~n", [global:registered_names()]),
+  io:format("Sending ~p ! {connect_client, ~p, ~p}...~n", [ConnectedNode, Username, self()]),
+  global:send(ConnectedNode, {connect_client, Username, self()}),
+  io:format("Connection established.~n"),
+  ConnectedNode.
+
+quit(ConnectedNode, Username) ->
+  global:send(ConnectedNode, {disconnect_client, Username, self(), []}),
   receive
     {disconnect_successful, Node} -> io:format("Disconnected from ~p~n", [Node])
   end,
@@ -103,3 +133,34 @@ get_username() ->
       io:format("ERROR: non-atomic username detected."),
       get_username()
   end.
+
+messages(MessageBuffer) ->
+  case MessageBuffer of
+    [] -> "There are no messages yet.";
+    _ ->
+      lists:reverse(
+        lists:map(
+          fun ({{H, M}, Name, Msg}) ->
+              io_lib:format("~2..0w:~2..0w | <~p>: ~p~n", [H, M, Name, Msg])
+          end,
+          MessageBuffer)
+       )
+  end.
+
+peers(ConnectedNode) ->
+  case get_available_clients(ConnectedNode) of
+    [] -> "There are no clients available, sorry.";
+    Peers ->
+      PeersWithIndex = lists:zip(lists:seq(1, length(Peers)), Peers),
+      lists:map(fun({I, P}) ->
+                    io_lib:format("~p: ~p~n", [I, P])
+                end, PeersWithIndex)
+  end.
+
+help() ->
+  [
+    io_lib:format("The following commands are available:~n", []),
+    io_lib:format("~p <message> | where N is an integer, send a text message to the client corresponding on the list to N.~n", [?NUMBER]),
+    io_lib:format("~p | refresh UI (debugging).~n", [?REFRESH]),
+    io_lib:format("~p | quit P2PChat.~n", [?QUIT])
+  ].
