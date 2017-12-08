@@ -31,7 +31,7 @@ In the `p2pchat` dir, deploy the app to TEDA using the provided scripts
 
 ### Running the application
 
-First start by deploying a network of completely connected (TODO: randomly connected) erlang nodes
+First start by deploying a network of completely connected erlang nodes
 
 `$ ../../scripts/run.sh p2pchat "network:run()" hosts_alive.conf diufpc81.unifr.ch <username>`
 
