@@ -32,7 +32,9 @@ observe_network() ->
     {client_unavailable, Node, Username} -> log("~p: client ~p unavailable~n", [Node, Username]);
     {client_connected, Node, Username, Pid} -> log("~p: client ~p (~p) connected~n", [Node, Username, Pid]);
     {client_disconnected, Node, Username, Client} -> log("~p: client ~p (~p) disconnected~n", [Node, Username, Client]);
-    {route_msg, Recipient, From, To, Via, Msg} -> log("~p: routing message ~p from ~p to ~p via ~p~n", [Recipient, Msg, From, To, Via])
+    {send_msg, Node, From, To, Msg} -> log("~p: sending message ~p from ~p to ~p~n", [Node, Msg, From, To]);
+    {route_msg, Recipient, From, To, Via, Msg} -> log("~p: routing message ~p from ~p to ~p via ~p~n", [Recipient, Msg, From, To, Via]);
+    {receive_msg, Node, From, To, Msg} -> log("~p: delivering message ~p from ~p to ~p~n", [Node, Msg, From, To])
   end,
   observe_network().
 
@@ -56,8 +58,8 @@ initialize_random_network_links(Node, Enodes) ->
    % before usage. Once TEDA is updated, we could simply use rand:uniform/1
    random:seed(erlang:now()),
 
-   % removes 50% of the links
-   RandomNodes = lists:filter(fun(_) -> random:uniform(2) /= 1 end, OtherNodes),
+   % removes 25% of the links
+   RandomNodes = lists:filter(fun(_) -> random:uniform(4) == 1 end, OtherNodes),
    % Always create at least one link
    case RandomNodes of
      [] -> Node ! { initialize_links, [lists:nth(random:uniform(length(OtherNodes)), OtherNodes)] };

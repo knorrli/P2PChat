@@ -33,17 +33,24 @@ maintain_connection(ConnectedNode, Username, Status, MsgBuffer) ->
       maintain_connection(ConnectedNode, Username, "Refresh UI", MsgBuffer);
     {outgoing_msg, Input} ->
       case string:to_integer(Input) of
-        {N, Msg} ->
-          PeerName = lists:nth(N, get_available_clients(ConnectedNode)),
-          Message = string:strip(Msg),
-          send_chat_msg(ConnectedNode, Message, Username, PeerName),
-          maintain_connection(ConnectedNode, Username, "Message sent!", add_to_msg_buffer({Username, Message}, MsgBuffer));
+        {N, RawMsg} ->
+          Peername = lists:nth(N, get_available_clients(ConnectedNode)),
+          Msg = string:strip(RawMsg),
+          try
+            global:send(observer, {send_msg, self(), Username, Peername, Msg}),
+            global:send(ConnectedNode, {route_msg, Username, Peername, Msg})
+          catch
+            {badarg, _} ->
+              % TODO: Error handling
+              io:format("ERROR: The chat message could not be sent.")
+          end,
+          maintain_connection(ConnectedNode, Username, "Message sent!", add_to_msg_buffer({Username, Msg}, MsgBuffer));
         _ ->
           NewStatus = io_lib:format("ERROR: can not parse input: ~s", [Input]),
           maintain_connection(ConnectedNode, Username, NewStatus, MsgBuffer)
       end;
     {incoming_msg, Msg, From} ->
-      global:send(observer, {route_msg, self(), From, Username, ConnectedNode, Msg}),
+      global:send(observer, {receive_msg, self(), From, Username, Msg}),
       maintain_connection(ConnectedNode, Username, "Message received!", add_to_msg_buffer({From, Msg}, MsgBuffer))
   end.
 
@@ -71,16 +78,6 @@ add_to_msg_buffer({Username, Msg}, Buffer) ->
     false -> NewBuffer
   end.
 
-send_chat_msg(ConnectedNode, Msg, Username, Peername) ->
-  try
-    global:send(observer, {route_msg, self(), Username, Peername, ConnectedNode, Msg}),
-    global:send(ConnectedNode, {route_msg, Username, Peername, Msg})
-  catch
-    {badarg, _} ->
-      % TODO: Error handling
-      io:format("ERROR: The chat message could not be sent.")
-  end.
-
 connect_client(Username, ConnectedNode) ->
   io:format("Connecting to ~p...~n", [ConnectedNode]),
   net_kernel:connect_node(ConnectedNode),
@@ -98,7 +95,6 @@ quit(ConnectedNode, Username) ->
   receive
     {disconnect_successful, Node} -> io:format("Disconnected from ~p~n", [Node])
   end,
-  global:unregister_name(node()),
   init:stop().
 
 get_available_clients(ConnectedNode) ->
