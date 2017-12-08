@@ -58,7 +58,7 @@ initialize_random_network_links(Node, Enodes) ->
    % before usage. Once TEDA is updated, we could simply use rand:uniform/1
    random:seed(erlang:now()),
 
-   % removes 25% of the links
+   % removes 75% of the links
    RandomNodes = lists:filter(fun(_) -> random:uniform(4) == 1 end, OtherNodes),
    % Always create at least one link
    case RandomNodes of
