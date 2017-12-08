@@ -73,7 +73,7 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
               global:send(observer, {client_available, self(), Username, ClientNode, DistanceToClient}),
               inform_about_new_client(NodesToInform, Username, DistanceToClient, NewInformedNodes),
               % inform connected clients about new client
-              [ ClientPid ! refresh || {ClientPid, _} <- ConnectedClients ],
+              [ ConnectedClientPid ! {client_available, Username} || {ConnectedClientPid, _} <- ConnectedClients ],
               run_node(ConnectedClients, lists:keyreplace(Username, 1, AvailableClients, {Username, ClientNode, DistanceToClient}), LinkedNodes);
             false ->
               % The new Distance is worse
@@ -84,7 +84,7 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
           global:send(observer, {client_available, self(), Username, ClientNode, DistanceToClient}),
           inform_about_new_client(NodesToInform, Username, DistanceToClient, NewInformedNodes),
           % inform connected clients about new client
-          [ ClientPid ! refresh || {ClientPid, _} <- ConnectedClients ],
+          [ ConnectedClientPid ! {client_available, Username} || {ConnectedClientPid, _} <- ConnectedClients ],
           run_node(ConnectedClients, [{Username, ClientNode, DistanceToClient}|AvailableClients], LinkedNodes)
       end;
 
@@ -94,7 +94,7 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
       NodesToInform = [ Node || Node <- LinkedNodes, not(lists:member(Node, InformedNodes)) ],
       NewInformedNodes = lists:append(InformedNodes, NodesToInform),
       [ Node ! {client_unavailable, ClientNode, Username, NewInformedNodes} || Node <- NodesToInform ],
-      [ Pid ! refresh || {Pid, _} <- ConnectedClients ],
+      [ ConnectedClientPid ! {client_unavailable, Username} || {ConnectedClientPid, _} <- ConnectedClients ],
 
       run_node(ConnectedClients, lists:keydelete(Username, 1, AvailableClients), LinkedNodes);
 
