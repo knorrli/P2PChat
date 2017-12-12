@@ -38,10 +38,8 @@ First start by deploying a network of completely connected erlang nodes
 Then you can attach the chat client to one of the nodes in the network:
 
 ```
+$ erl -make
 $ erl
 > c(client).
 > client:run().
 ```
-
-### Next Up
-When you connect a second client to another node in the network, these two clients should later be able to communicate with each other.
