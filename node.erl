@@ -38,8 +38,7 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
         false ->
           global:send(observer, {client_connected, self(), Username, Pid}),
 
-          InformedNodes = [self()|LinkedNodes],
-          [ Node ! {client_available, self(), Username, 0, InformedNodes} || Node <- LinkedNodes ],
+          [ Node ! {client_available, self(), Username, 0} || Node <- LinkedNodes ],
 
           run_node([{Pid, Username}|ConnectedClients], AvailableClients, LinkedNodes)
       end;
@@ -51,18 +50,13 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
 
       run_node(ConnectedClients, AvailableClients, LinkedNodes);
 
-    % Perform a modified version of Chandy-Misra
-    %   InformedNodes holds all the nodes that already know about this Client.
-    %   Since the InformedNodes were informed by someone that also informed us,
-    %   it is not possible that we would have a shorter path to any of them.
-    %   Therefore we don't have to inform these Nodes => less messages.
-    {client_available, ClientNode, Username, ClientNodeDistance, InformedNodes} ->
+    % Perform Chandy-Misra for finding the shortest path from each node to the
+    % new client.
+    {client_available, ClientNode, Username, ClientNodeDistance} ->
       DistanceToClient = ClientNodeDistance + 1,
 
 
-      NodesToInform = [ Node || Node <- LinkedNodes, Node =/= ClientNode, not(lists:member(Node, InformedNodes)) ],
-      NewInformedNodes = lists:append(InformedNodes, NodesToInform),
-
+      NodesToInform = [ Node || Node <- LinkedNodes, Node =/= ClientNode ],
 
       case lists:keyfind(Username, 1, AvailableClients) of
         {Username, _CurrentClientNode, CurrentDistance} ->
@@ -71,7 +65,7 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
             true ->
               % The new Distance is better
               global:send(observer, {client_available, self(), Username, ClientNode, DistanceToClient}),
-              inform_about_new_client(NodesToInform, Username, DistanceToClient, NewInformedNodes),
+              inform_about_new_client(NodesToInform, Username, DistanceToClient),
               % inform connected clients about new client
               [ ConnectedClientPid ! {client_available, Username} || {ConnectedClientPid, _} <- ConnectedClients ],
               run_node(ConnectedClients, lists:keyreplace(Username, 1, AvailableClients, {Username, ClientNode, DistanceToClient}), LinkedNodes);
@@ -82,26 +76,24 @@ run_node(ConnectedClients, AvailableClients, LinkedNodes) ->
         false ->
           % Client not in our list of clients
           global:send(observer, {client_available, self(), Username, ClientNode, DistanceToClient}),
-          inform_about_new_client(NodesToInform, Username, DistanceToClient, NewInformedNodes),
+          inform_about_new_client(NodesToInform, Username, DistanceToClient),
           % inform connected clients about new client
           [ ConnectedClientPid ! {client_available, Username} || {ConnectedClientPid, _} <- ConnectedClients ],
           run_node(ConnectedClients, [{Username, ClientNode, DistanceToClient}|AvailableClients], LinkedNodes)
       end;
 
-    {client_unavailable, ClientNode, Username, InformedNodes} ->
+    {client_unavailable, ClientNode, Username} ->
       global:send(observer, {client_unavailable, self(), Username}),
 
-      NodesToInform = [ Node || Node <- LinkedNodes, not(lists:member(Node, InformedNodes)) ],
-      NewInformedNodes = lists:append(InformedNodes, NodesToInform),
-      [ Node ! {client_unavailable, ClientNode, Username, NewInformedNodes} || Node <- NodesToInform ],
+      NodesToInform = [ Node || Node <- LinkedNodes ],
+      [ Node ! {client_unavailable, ClientNode, Username} || Node <- NodesToInform ],
       [ ConnectedClientPid ! {client_unavailable, Username} || {ConnectedClientPid, _} <- ConnectedClients ],
 
       run_node(ConnectedClients, lists:keydelete(Username, 1, AvailableClients), LinkedNodes);
 
     {disconnect_client, Username, ClientPid} ->
       global:send(observer, {client_disconnected, self(), Username, ClientPid}),
-      InformedNodes = [self()|LinkedNodes],
-      [ Node ! {client_unavailable, self(), Username, InformedNodes} || Node <- LinkedNodes ],
+      [ Node ! {client_unavailable, self(), Username} || Node <- LinkedNodes ],
       ClientPid ! {disconnect_successful, self()},
       run_node(lists:keydelete(ClientPid, 1, ConnectedClients), AvailableClients, LinkedNodes);
 
@@ -125,5 +117,5 @@ route_chat_msg(From, To, Msg, ConnectedClients, AvailableClients) ->
       ClosestNode ! {route_msg, From, To, Msg}
   end.
 
-inform_about_new_client(NodesToInform, Client, DistanceToClient, InformedNodes) ->
-  [ Node ! {client_available, self(), Client, DistanceToClient, InformedNodes} || Node <- NodesToInform ].
+inform_about_new_client(NodesToInform, Client, DistanceToClient) ->
+  [ Node ! {client_available, self(), Client, DistanceToClient} || Node <- NodesToInform ].
