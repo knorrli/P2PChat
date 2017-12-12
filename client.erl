@@ -32,6 +32,10 @@ maintain_connection(ConnectedNode, Username, Status, AvailableClients, MsgBuffer
 
     {outgoing_msg, Input} ->
       case string:to_integer(Input) of
+        {error, no_integer} ->
+          maintain_connection(ConnectedNode, Username, "ERROR: Please select an available peer!", AvailableClients, MsgBuffer);
+        {N, _} when N > length(AvailableClients) ->
+          maintain_connection(ConnectedNode, Username, "ERROR: Please select an available peer!", AvailableClients, MsgBuffer);
         {N, RawMsg} ->
           Peername = lists:nth(N, AvailableClients),
           Msg = string:strip(RawMsg),
