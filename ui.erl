@@ -39,7 +39,7 @@ peers(AvailableClients) ->
   case AvailableClients of
     [] -> "There are no clients available, sorry.";
     Peers ->
-      PeersWithIndex = lists:zip(lists:seq(1, length(Peers)), Peers),
+      PeersWithIndex = lists:zip(lists:seq(1, length(Peers)), lists:reverse(Peers)),
       lists:map(fun({I, P}) ->
                     io_lib:format("~p: ~p~n", [I, P])
                 end, PeersWithIndex)

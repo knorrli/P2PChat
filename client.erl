@@ -17,19 +17,23 @@ run() ->
   ChosenNode = choose_node(Nodes),
   ConnectedNode = connect_client(Username, ChosenNode),
   spawn_link(prompt, run, [self()]),
-  maintain_connection(ConnectedNode, Username, "Connected to Network", []).
 
-maintain_connection(ConnectedNode, Username, Status, MsgBuffer) ->
-  ui:render(Username, Status, get_available_clients(ConnectedNode), MsgBuffer),
+  AvailableClients = get_available_clients(ConnectedNode),
+  maintain_connection(ConnectedNode, Username, "Connected to Network", AvailableClients, []).
+
+maintain_connection(ConnectedNode, Username, Status, AvailableClients, MsgBuffer) ->
+  ui:render(Username, Status, AvailableClients, MsgBuffer),
   receive
     quit ->
       quit(ConnectedNode, Username);
     refresh ->
-      maintain_connection(ConnectedNode, Username, "Refresh UI", MsgBuffer);
+      RefreshedClients = get_available_clients(ConnectedNode),
+      maintain_connection(ConnectedNode, Username, "Refresh UI", RefreshedClients, MsgBuffer);
+
     {outgoing_msg, Input} ->
       case string:to_integer(Input) of
         {N, RawMsg} ->
-          Peername = lists:nth(N, get_available_clients(ConnectedNode)),
+          Peername = lists:nth(N, AvailableClients),
           Msg = string:strip(RawMsg),
           try
             global:send(observer, {send_msg, self(), Username, Peername, Msg}),
@@ -39,14 +43,18 @@ maintain_connection(ConnectedNode, Username, Status, MsgBuffer) ->
               % TODO: Error handling
               io:format("ERROR: The chat message could not be sent.")
           end,
-          maintain_connection(ConnectedNode, Username, "Message sent!", add_to_msg_buffer({Username, Msg}, MsgBuffer));
+          maintain_connection(ConnectedNode, Username, "Message sent!", AvailableClients, add_to_msg_buffer({Username, Msg}, MsgBuffer));
         _ ->
           NewStatus = io_lib:format("ERROR: can not parse input: ~s", [Input]),
-          maintain_connection(ConnectedNode, Username, NewStatus, MsgBuffer)
+          maintain_connection(ConnectedNode, Username, NewStatus, AvailableClients, MsgBuffer)
       end;
     {incoming_msg, Msg, From} ->
       global:send(observer, {receive_msg, self(), From, Username, Msg}),
-      maintain_connection(ConnectedNode, Username, "Message received!", add_to_msg_buffer({From, Msg}, MsgBuffer))
+      maintain_connection(ConnectedNode, Username, "Message received!", AvailableClients, add_to_msg_buffer({From, Msg}, MsgBuffer));
+    {client_available, Name} ->
+      maintain_connection(ConnectedNode, Username, "Message received!", [Name|AvailableClients], MsgBuffer);
+    {client_unavailable, Name} ->
+      maintain_connection(ConnectedNode, Username, "Message received!", lists:delete(Name, AvailableClients), MsgBuffer)
   end.
 
 add_to_msg_buffer({Username, Msg}, Buffer) ->
@@ -76,13 +84,6 @@ quit(ConnectedNode, Username) ->
   end,
   init:stop().
 
-get_available_clients(ConnectedNode) ->
-  global:send(ConnectedNode, { request_available_clients, self() }),
-  receive
-    {available_clients, AvailableClients} -> AvailableClients
-  end.
-
-
 % TODO: improve error handling
 choose_node(Enodes) ->
   io:format("There are currently ~p Nodes in the network. ", [length(Enodes)]),
@@ -96,6 +97,12 @@ choose_node(Enodes) ->
     {error, _} ->
       io:format("ERROR: please enter a number between 1 and ~p~n", [length(Enodes)]),
       choose_node(Enodes)
+  end.
+
+get_available_clients(ConnectedNode) ->
+  global:send(ConnectedNode, {request_available_clients, self()}),
+  receive
+    {available_clients, RefreshedClients} -> RefreshedClients
   end.
 
 get_username() ->
