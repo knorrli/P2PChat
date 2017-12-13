@@ -83,9 +83,6 @@ connect_client(Username, ConnectedNode) ->
 
 quit(ConnectedNode, Username) ->
   global:send(ConnectedNode, {disconnect_client, Username, self()}),
-  receive
-    {disconnect_successful, Node} -> io:format("Disconnected from ~p~n", [Node])
-  end,
   init:stop().
 
 % TODO: improve error handling
