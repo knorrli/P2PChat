@@ -35,10 +35,15 @@ First start by deploying a network of completely connected erlang nodes
 
 `$ ../../scripts/run.sh p2pchat "network:run()" hosts_alive.conf diufpc81.unifr.ch <username>`
 
-Then you can attach the chat client to one of the nodes in the network:
+Then you can attach one or multiple chat clients to one of the nodes in the network:
 
 ```
 $ erl -make
+$ erl
+> c(client).
+> client:run().
+
+... open another shell in the same directory
 $ erl
 > c(client).
 > client:run().
